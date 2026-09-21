@@ -9,7 +9,7 @@ from shared.constants.data_sources import FIELD_GATES
 from shared.enums.data_sources import DEFAULT_ENABLED_SOURCES, DataSourceKey
 
 
-def _consent_map(db: Session, employee_id: str) -> dict[str, bool]:
+def consent_map(db: Session, employee_id: str) -> dict[str, bool]:
     current = {c.source: c.enabled for c in consent_repo.list_consents(db, employee_id)}
     return {
         src.value: current.get(src.value, src in DEFAULT_ENABLED_SOURCES) for src in DataSourceKey
@@ -17,7 +17,7 @@ def _consent_map(db: Session, employee_id: str) -> dict[str, bool]:
 
 
 def filter_features_by_consent(db: Session, employee_id: str, features: dict) -> dict:
-    consents = _consent_map(db, employee_id)
+    consents = consent_map(db, employee_id)
     filtered = dict(features)
     for source, fields in FIELD_GATES.items():
         if not consents.get(source.value, False):

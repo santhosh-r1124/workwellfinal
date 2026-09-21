@@ -154,24 +154,47 @@ tests/                unit/, integration/, agents/ (scenario tests)
 
 ## What's implemented vs. deferred
 
-This is a large, multi-phase roadmap (Phases 0-21). This repository is a genuinely working,
-tested implementation of **Phases 0-10** - the full detection + agentic wellness pipeline, end
-to end, on synthetic data, with a real dashboard and chat UI - plus the Phase 14/15 provider
-abstraction and a Phase 16 test suite. It intentionally does not implement:
+All 21 roadmap phases are now implemented and tested, with the boundaries below.
 
-- **Phase 11 (org analytics), Phase 12 (admin panel)** - the data model (audit logs, consents,
-  interventions, feedback) supports building these as additional read-only aggregation
-  endpoints/pages; not built here.
-- **Phase 13 (Microsoft/Slack/Jira/GitHub integrations)** - these require OAuth application
-  registration with each vendor, which can't be done generically in this codebase.
-- **Phase 17-18 (evaluation dataset / model comparison)** - meaningful evaluation needs real or
-  much larger synthetic longitudinal data than a demo dataset provides.
-- **Phase 19 (observability stack), Phase 20 (full security hardening: OAuth/RBAC/TLS/rate
-  limiting/secret management), Phase 21 (production deployment topology)** - these are
-  infrastructure/ops concerns layered on top of an already-working application, not core
-  product logic.
+**Fully built and verified:** the detection and agentic wellness pipeline (Phases 0-10), the
+provider abstraction (14/15), the test suite (16), team analytics (11), the admin panel (12),
+the evaluation harness (17/18), observability (19), and security hardening (20).
 
-Within Phases 0-10, a few pragmatic scope choices are worth knowing about:
+**Built but not executed end to end:** the production deployment config (Phase 21) -
+`docker-compose.prod.yml`, the multi-stage frontend image and the nginx TLS proxy were authored
+in an environment with no Docker daemon. The Python imports, migrations, tests and frontend
+production build are all verified; the container orchestration around them is not. See
+[docs/deployment.md](docs/deployment.md).
+
+**Partially built by necessity (Phase 13):** the integration framework, the connector registry
+and a fully working ICS calendar connector are real and tested. The Microsoft Graph, Slack, Jira
+and GitHub connectors are *declared, not implemented* - each requires OAuth app registration and
+admin-consented scopes in a customer tenant, so there is nothing meaningful to build or test
+without those credentials. They report `implemented: false` and raise on use rather than
+returning empty data, so a half-configured integration can never look like a quiet one.
+
+### Evaluation results (Phase 18)
+
+`python scripts/run_evaluation.py` compares the shipped personalized detector against a
+population-baseline detector on synthetic data. Headline numbers:
+
+| | Personalized | Population (matched alert rate) |
+|---|---|---|
+| Precision | 0.96 | 0.00 |
+| Recall | 0.75 | 0.00 |
+| AUROC | 0.99 | 0.35 |
+| Episodes detected | 13/13 | 0/13 |
+| False positives on stable-high-workload employees | 0.00 | 0.77 |
+
+The population model, forced to alert as often as the personalized one, spends 77% of its alerts
+on employees whose workload is merely high and stable rather than strained, and catches none of
+the real episodes. That is the exact failure mode personal baselines exist to prevent.
+
+This is synthetic data: it measures whether the detector recovers a known generative signal, not
+real-world clinical validity, which would require consented longitudinal data and validated
+instruments.
+
+Some pragmatic scope choices worth knowing about:
 
 - The desktop agent's active-window detection (`apps/desktop-agent/collectors/window_collector.py`)
   is best-effort per-OS (win32gui / AppKit / xdotool) and returns `None` gracefully where
@@ -182,6 +205,11 @@ Within Phases 0-10, a few pragmatic scope choices are worth knowing about:
 - The Gemini model/embedding model names are read from `.env` (`GEMINI_MODEL`,
   `GEMINI_EMBEDDING_MODEL`) so they can be updated without a code change as Google's available
   models evolve.
+- Gemini calls have never been made against a live key - the test suite runs on the offline
+  `local` provider - so `GeminiProvider`'s request shape is worth a smoke test with a real key
+  before trusting it.
+- Agent orchestration runs inline in the request path rather than on a worker queue. Fine at
+  demo scale, and called out as the main scaling limitation in `docs/deployment.md`.
 
 ## Privacy by design
 
@@ -221,13 +249,21 @@ against `AI_PROVIDER=local` (no network / no real Gemini key required). It cover
 ## Key API surface
 
 ```
-GET  /health
-POST /auth/login                         GET /auth/me
+GET  /health                             GET  /metrics (Prometheus)
+POST /auth/login                         GET  /auth/me
 GET  /consent                            POST /consent            PATCH/DELETE /consent/{source}
 POST /telemetry/events                   POST /telemetry/self-report
-GET  /employees/{id}/baseline            GET /employees/{id}/patterns
+GET  /employees/{id}/baseline            GET  /employees/{id}/patterns
 POST /rag/query
 POST /chat
+
+# manager or admin - aggregates only, never individuals
+GET  /analytics/teams                    GET  /analytics/teams/{team}
+
+# admin only
+GET/PATCH /admin/settings                GET  /admin/audit-logs
+GET  /admin/data-sources                 GET  /admin/integrations
+GET  /admin/knowledge-base               POST /admin/retention/apply
 ```
 
 Full interactive docs at `/docs` once the backend is running.

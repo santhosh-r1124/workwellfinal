@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from apps.backend.api.deps import get_db, require_role
 from apps.backend.models import User
-from apps.backend.services import admin_service, audit_service
+from apps.backend.services import admin_service, audit_service, integration_service
 from shared.enums.roles import RoleName
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -64,6 +64,15 @@ def data_sources(_user: User = Depends(_admin_only)):
 @router.get("/audit-logs")
 def audit_logs(user: User = Depends(_admin_only), db: Session = Depends(get_db), limit: int = 100):
     return {"logs": admin_service.recent_audit_logs(db, user.org_id, limit=min(limit, 500))}
+
+
+@router.get("/integrations")
+def integrations(_user: User = Depends(_admin_only)):
+    """Connectors the build knows about. `implemented: false` means the
+    connector is declared with its required OAuth config but has no client
+    yet - surfaced explicitly so a vendor integration never looks configured
+    when it isn't."""
+    return {"connectors": integration_service.list_connectors()}
 
 
 @router.get("/knowledge-base")

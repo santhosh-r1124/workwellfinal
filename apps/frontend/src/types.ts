@@ -55,3 +55,41 @@ export interface ChatMessage {
   content: string;
   sources?: ChatSource[];
 }
+
+export interface TeamMetricChange {
+  change_pct: number;
+  direction: "up" | "down" | "flat";
+  contributing_employees: number;
+}
+
+export interface TeamAnalytics {
+  team: string;
+  window_days: number;
+  as_of: string;
+  labels: Record<string, string>;
+  cohort_size: number;
+  min_cohort: number;
+  sufficient_cohort: boolean;
+  metrics: Record<string, TeamMetricChange>;
+  suppressed: string[];
+}
+
+export interface OrgSettings {
+  org_id: string;
+  retention_days: number;
+  aggregation_min_cohort: number;
+  interventions_enabled: boolean;
+  model_name: string | null;
+  disabled_sources: string[];
+  allowed_integrations: string[];
+}
+
+export interface AuditLogEntry {
+  id: string;
+  actor_id: string | null;
+  subject_user_id: string | null;
+  action: string;
+  resource: string;
+  meta: Record<string, unknown>;
+  created_at: string;
+}

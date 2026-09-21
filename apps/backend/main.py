@@ -3,7 +3,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from apps.backend.api.routes import auth, chat, consent, employees, health, rag, telemetry
+from apps.backend.api.routes import (
+    admin,
+    analytics,
+    auth,
+    chat,
+    consent,
+    employees,
+    health,
+    rag,
+    telemetry,
+)
 from apps.backend.core.config import get_settings
 
 
@@ -37,6 +47,8 @@ def create_app() -> FastAPI:
     app.include_router(employees.router)
     app.include_router(rag.router)
     app.include_router(chat.router)
+    app.include_router(analytics.router)
+    app.include_router(admin.router)
 
     return app
 

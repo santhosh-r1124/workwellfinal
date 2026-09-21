@@ -21,6 +21,12 @@ export default function NavBar() {
           <NavLink to="/timeline" className={linkClass}>Pattern Timeline</NavLink>
           <NavLink to="/chat" className={linkClass}>Assistant</NavLink>
           <NavLink to="/privacy" className={linkClass}>Privacy Center</NavLink>
+          {(user.role === "manager" || user.role === "admin") && (
+            <NavLink to="/teams" className={linkClass}>Team Analytics</NavLink>
+          )}
+          {user.role === "admin" && (
+            <NavLink to="/admin" className={linkClass}>Admin</NavLink>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-3 text-sm text-slate-400">

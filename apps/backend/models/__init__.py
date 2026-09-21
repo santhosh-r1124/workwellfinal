@@ -8,6 +8,7 @@ from apps.backend.models.data_source import DataSource
 from apps.backend.models.feedback import Feedback
 from apps.backend.models.intervention import Intervention
 from apps.backend.models.knowledge import KnowledgeChunk, KnowledgeDocument
+from apps.backend.models.org_settings import OrgSettings
 from apps.backend.models.organization import Organization
 from apps.backend.models.pattern import PatternStateRecord
 from apps.backend.models.role import Role
@@ -36,4 +37,5 @@ __all__ = [
     "ChatSession",
     "ChatMessage",
     "SafetyEvent",
+    "OrgSettings",
 ]

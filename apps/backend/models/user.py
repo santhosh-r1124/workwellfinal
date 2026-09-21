@@ -19,5 +19,6 @@ class User(Base, TimestampMixin):
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     role_id: Mapped[str] = mapped_column(ForeignKey("roles.id"), nullable=False)
+    team: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
 
     organization: Mapped["Organization"] = relationship(back_populates="users")

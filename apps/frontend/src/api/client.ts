@@ -1,4 +1,12 @@
-import type { BaselineResponse, ChatMessage, DataSourceInfo, PatternRecord } from "../types";
+import type {
+  AuditLogEntry,
+  BaselineResponse,
+  ChatMessage,
+  DataSourceInfo,
+  OrgSettings,
+  PatternRecord,
+  TeamAnalytics,
+} from "../types";
 
 const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -53,6 +61,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ query, category }),
     }),
+
+  listTeams: () => request<{ teams: string[] }>("/analytics/teams"),
+  teamAnalytics: (team: string) =>
+    request<TeamAnalytics>(`/analytics/teams/${encodeURIComponent(team)}`),
+
+  getAdminSettings: () => request<OrgSettings>("/admin/settings"),
+  updateAdminSettings: (patch: Partial<OrgSettings>) =>
+    request<OrgSettings>("/admin/settings", { method: "PATCH", body: JSON.stringify(patch) }),
+  getAdminDataSources: () =>
+    request<{ data_sources: (DataSourceInfo & { never_collectible: boolean })[] }>(
+      "/admin/data-sources"
+    ),
+  getAuditLogs: () => request<{ logs: AuditLogEntry[] }>("/admin/audit-logs"),
+  applyRetention: () =>
+    request<{ cutoff: string; daily_features_deleted: number; telemetry_events_deleted: number }>(
+      "/admin/retention/apply",
+      { method: "POST" }
+    ),
 };
 
 export { getToken };

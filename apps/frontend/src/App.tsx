@@ -2,11 +2,13 @@ import { Route, Routes } from "react-router-dom";
 
 import NavBar from "./components/NavBar";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Admin from "./pages/Admin";
 import Chat from "./pages/Chat";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import PatternTimeline from "./pages/PatternTimeline";
 import PrivacyCenter from "./pages/PrivacyCenter";
+import TeamAnalytics from "./pages/TeamAnalytics";
 
 export default function App() {
   return (
@@ -43,6 +45,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Chat />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teams"
+          element={
+            <ProtectedRoute>
+              <TeamAnalytics />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <Admin />
             </ProtectedRoute>
           }
         />

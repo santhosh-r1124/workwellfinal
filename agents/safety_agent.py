@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from apps.backend.core.observability import record_safety_event
 from safety import classifier, escalation, policy
 from shared.enums.safety import SafetySeverity
 
@@ -14,6 +15,7 @@ def check_message(db: Session, employee_id: str, chat_message_id: str | None, te
 
     action = policy.action_for(classification["severity"])
     escalation.record_safety_event(db, employee_id, chat_message_id, classification, action)
+    record_safety_event(classification["severity"])
 
     return {
         "flagged": True,

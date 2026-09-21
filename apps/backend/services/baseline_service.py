@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from apps.backend.core.observability import record_pattern_state
 from apps.backend.repositories import baseline_repo, telemetry_repo
 from ml.anomaly.pattern_builder import build_pattern_object
 from ml.baseline.baseline_engine import compute_baseline
@@ -45,6 +46,7 @@ def recompute_baselines(db: Session, employee_id: str) -> dict:
     pattern = None
     if history_dicts:
         pattern = build_pattern_object(employee_id, str(history_dicts[-1]["date"]), history_dicts)
+        record_pattern_state(pattern["state"])
         baseline_repo.save_pattern_state(
             db,
             employee_id,

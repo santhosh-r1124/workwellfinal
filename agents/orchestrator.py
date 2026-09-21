@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from agents import audit_agent, context_agent, intervention_agent, wellness_agent
 from agents.privacy_agent import has_sufficient_consent
 from agents.providers import get_provider
+from apps.backend.core.observability import record_intervention
 from apps.backend.repositories import agent_repo, baseline_repo
 from apps.backend.services import baseline_service
 from ml.risk.risk_fusion import compute_component_scores, fuse_risk
@@ -57,6 +58,7 @@ def run_orchestration(db: Session, employee_id: str, employee_note: str | None =
             db, employee_id, agent_run.id, intervention["type"], intervention["message"]
         )
 
+    record_intervention(intervention["type"])
     audit_agent.log_agent_run(db, employee_id, agent_run.id, risk["state"], intervention["type"])
 
     return {

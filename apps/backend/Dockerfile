@@ -16,10 +16,18 @@ RUN pip install -r apps/backend/requirements.txt
 COPY agents agents
 COPY ml ml
 COPY rag rag
+COPY safety safety
+COPY integrations integrations
 COPY shared shared
 COPY database database
 COPY scripts scripts
 COPY apps/backend apps/backend
+
+# Run as a non-root user (Phase 20): a container escape should not land on
+# root, and nothing here needs write access to the image.
+RUN useradd --create-home --uid 10001 workwell \
+    && chown -R workwell:workwell /app
+USER workwell
 
 EXPOSE 8000
 

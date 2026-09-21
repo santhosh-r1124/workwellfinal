@@ -50,6 +50,8 @@ services:
       - ./agents:/app/agents
       - ./ml:/app/ml
       - ./rag:/app/rag
+      - ./safety:/app/safety
+      - ./integrations:/app/integrations
       - ./shared:/app/shared
       - ./database:/app/database
       - ./scripts:/app/scripts

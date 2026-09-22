@@ -3,8 +3,10 @@ import type {
   BaselineResponse,
   ChatMessage,
   DataSourceInfo,
+  Intervention,
   OrgSettings,
   PatternRecord,
+  SelfReportStatus,
   TeamAnalytics,
 } from "../types";
 
@@ -60,6 +62,24 @@ export const api = {
     request<{ answer: string; sources: { title: string; url?: string | null }[] }>("/rag/query", {
       method: "POST",
       body: JSON.stringify({ query, category }),
+    }),
+
+  listInterventions: () => request<Intervention[]>("/me/interventions"),
+  respondToIntervention: (id: string, status: string, response?: string) =>
+    request<Intervention>(`/me/interventions/${id}/respond`, {
+      method: "POST",
+      body: JSON.stringify({ status, response: response ?? null }),
+    }),
+  submitInterventionFeedback: (id: string, rating: number, comment?: string) =>
+    request<{ id: string }>(`/me/interventions/${id}/feedback`, {
+      method: "POST",
+      body: JSON.stringify({ rating, comment: comment ?? null }),
+    }),
+  getTodaySelfReport: () => request<SelfReportStatus>("/me/self-report"),
+  submitSelfReport: (stress: number, energy: number, recovery: number, note?: string) =>
+    request<{ date: string }>("/me/self-report", {
+      method: "POST",
+      body: JSON.stringify({ stress, energy, recovery, note: note ?? null }),
     }),
 
   listTeams: () => request<{ teams: string[] }>("/analytics/teams"),

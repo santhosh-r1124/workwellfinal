@@ -11,6 +11,7 @@ from apps.backend.api.routes import (
     consent,
     employees,
     health,
+    me,
     metrics,
     rag,
     telemetry,
@@ -63,6 +64,7 @@ def create_app() -> FastAPI:
     app.include_router(consent.router)
     app.include_router(telemetry.router)
     app.include_router(employees.router)
+    app.include_router(me.router)
     app.include_router(rag.router)
     app.include_router(chat.router)
     app.include_router(analytics.router)

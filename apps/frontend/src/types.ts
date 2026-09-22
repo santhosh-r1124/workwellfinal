@@ -84,6 +84,23 @@ export interface OrgSettings {
   allowed_integrations: string[];
 }
 
+export interface Intervention {
+  id: string;
+  type: string;
+  message: string;
+  status: string;
+  employee_response: string | null;
+  created_at: string;
+}
+
+export interface SelfReportStatus {
+  submitted: boolean;
+  stress?: number;
+  energy?: number;
+  recovery?: number;
+  note?: string | null;
+}
+
 export interface AuditLogEntry {
   id: string;
   actor_id: string | null;

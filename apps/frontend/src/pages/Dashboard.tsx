@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
+import CheckIn from "../components/CheckIn";
 import Explainability from "../components/Explainability";
+import InterventionCard from "../components/InterventionCard";
 import MetricBar from "../components/MetricBar";
 import { useAuth } from "../context/AuthContext";
-import type { BaselineResponse, PatternRecord } from "../types";
+import type { BaselineResponse, Intervention, PatternRecord } from "../types";
 
 // Matches shared/constants/wellbeing.py NEVER_COLLECTED_LABELS - a fixed
 // product-wide constant, not per-employee data.
@@ -30,7 +32,12 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [baseline, setBaseline] = useState<BaselineResponse | null>(null);
   const [patterns, setPatterns] = useState<PatternRecord[]>([]);
+  const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const loadInterventions = () => {
+    api.listInterventions().then(setInterventions).catch(() => undefined);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -39,6 +46,7 @@ export default function Dashboard() {
       .getPatterns(user.id)
       .then((res) => setPatterns(res.patterns))
       .catch(() => undefined);
+    loadInterventions();
   }, [user]);
 
   const latest = patterns[patterns.length - 1];
@@ -60,6 +68,24 @@ export default function Dashboard() {
           </p>
         </div>
       )}
+
+      {interventions.filter((i) => i.type !== "no_action").length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-slate-200 mb-2">Suggestions for you</h2>
+          {interventions
+            .filter((i) => i.type !== "no_action")
+            .slice(0, 3)
+            .map((intervention) => (
+              <InterventionCard
+                key={intervention.id}
+                intervention={intervention}
+                onChange={loadInterventions}
+              />
+            ))}
+        </div>
+      )}
+
+      <CheckIn />
 
       <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
         {baseline &&

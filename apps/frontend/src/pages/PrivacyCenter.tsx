@@ -1,87 +1,116 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
+import PageHeader from "../components/PageHeader";
 import type { DataSourceInfo } from "../types";
+
+const DISCLOSURE: { key: keyof DataSourceInfo; label: string }[] = [
+  { key: "what", label: "What is collected" },
+  { key: "why", label: "Why" },
+  { key: "where", label: "Where processed" },
+  { key: "retention", label: "Retention" },
+  { key: "who_can_access", label: "Who can access it" },
+];
 
 export default function PrivacyCenter() {
   const [sources, setSources] = useState<DataSourceInfo[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   const load = () => {
     api.getConsent().then(setSources);
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(load, []);
 
   const toggle = async (source: DataSourceInfo) => {
     if (!source.collectible) return;
-    await api.patchConsent(source.key, !source.enabled);
-    load();
+    setBusy(source.key);
+    try {
+      await api.patchConsent(source.key, !source.enabled);
+      load();
+    } finally {
+      setBusy(null);
+    }
   };
 
+  const collectible = sources.filter((s) => s.collectible);
+  const never = sources.filter((s) => !s.collectible);
+
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-xl font-semibold text-white mb-1">Privacy Center</h1>
-      <p className="text-sm text-slate-400 mb-6">
-        Control exactly what WorkWell collects. Some signals are permanently disabled in this
-        product, regardless of any toggle.
-      </p>
-      <div className="space-y-2">
-        {sources.map((s) => (
-          <div key={s.key} className="bg-slate-900 border border-slate-800 rounded-lg">
-            <div className="flex items-center justify-between p-4">
-              <div>
-                <div className="text-sm font-medium text-white">{s.label}</div>
-                <div className="text-xs text-slate-500">{s.collectible ? s.category : "Never collected"}</div>
+    <>
+      <PageHeader
+        title="Privacy centre"
+        subtitle="Control exactly what WorkWell collects. Turning something off stops it being collected, not just hidden."
+      />
+
+      <div className="space-y-2 mb-8">
+        {collectible.map((s) => (
+          <div key={s.key} className="panel overflow-hidden">
+            <div className="flex items-center justify-between gap-4 p-4">
+              <div className="min-w-0">
+                <div className="text-[13.5px] font-medium">{s.label}</div>
+                <div className="text-[11.5px] text-text-faint capitalize">{s.category}</div>
               </div>
-              <div className="flex items-center gap-3">
-                <button className="text-xs text-sky-400 hover:underline" onClick={() => setExpanded(expanded === s.key ? null : s.key)}>
-                  {expanded === s.key ? "Hide details" : "Details"}
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => setExpanded(expanded === s.key ? null : s.key)}
+                  className="text-[12px] text-accent hover:underline"
+                  aria-expanded={expanded === s.key}
+                >
+                  {expanded === s.key ? "Hide" : "Details"}
                 </button>
                 <button
                   onClick={() => toggle(s)}
-                  disabled={!s.collectible}
-                  className={`w-11 h-6 rounded-full transition-colors relative ${
-                    s.enabled ? "bg-sky-500" : "bg-slate-700"
-                  } ${!s.collectible ? "opacity-40 cursor-not-allowed" : ""}`}
+                  disabled={busy === s.key}
+                  role="switch"
+                  aria-checked={s.enabled}
+                  aria-label={s.label}
+                  className={`relative h-6 w-11 rounded-full border transition-colors disabled:opacity-50 ${
+                    s.enabled ? "bg-accent-deep border-accent-deep" : "bg-surface-raised border-line"
+                  }`}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    className={`absolute top-[3px] left-[3px] h-4 w-4 rounded-full bg-white transition-transform ${
                       s.enabled ? "translate-x-5" : ""
                     }`}
                   />
                 </button>
               </div>
             </div>
+
             {expanded === s.key && (
-              <div className="px-4 pb-4 text-xs text-slate-400 space-y-1 border-t border-slate-800 pt-3">
-                <p>
-                  <span className="text-slate-500">What is collected: </span>
-                  {s.what}
-                </p>
-                <p>
-                  <span className="text-slate-500">Why: </span>
-                  {s.why}
-                </p>
-                <p>
-                  <span className="text-slate-500">Where processed: </span>
-                  {s.where}
-                </p>
-                <p>
-                  <span className="text-slate-500">Retention: </span>
-                  {s.retention}
-                </p>
-                <p>
-                  <span className="text-slate-500">Who can access it: </span>
-                  {s.who_can_access}
-                </p>
-              </div>
+              <dl className="border-t border-line-soft px-4 py-3.5 space-y-1.5 text-[12px] animate-fade-up">
+                {DISCLOSURE.map(({ key, label }) => (
+                  <div key={key}>
+                    <dt className="inline text-text-faint">{label}: </dt>
+                    <dd className="inline text-text-muted">{String(s[key])}</dd>
+                  </div>
+                ))}
+              </dl>
             )}
           </div>
         ))}
       </div>
-    </div>
+
+      <h2 className="eyebrow mb-2.5">Never collected</h2>
+      <div className="panel overflow-hidden mb-3">
+        {never.map((s, i) => (
+          <div
+            key={s.key}
+            className={`flex items-center justify-between gap-4 px-4 py-3 ${
+              i < never.length - 1 ? "border-b border-line-soft" : ""
+            }`}
+          >
+            <span className="text-[13.5px] text-text-muted">{s.label}</span>
+            <span className="chip border-line text-text-faint">disabled in code</span>
+          </div>
+        ))}
+      </div>
+      <p className="text-[12px] text-text-faint">
+        These four have no toggle because there is nothing to toggle: the consent API rejects any
+        attempt to enable them, so the guarantee does not depend on this screen.
+      </p>
+    </>
   );
 }

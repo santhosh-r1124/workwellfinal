@@ -2,6 +2,7 @@ import type {
   AuditLogEntry,
   BaselineResponse,
   ChatMessage,
+  DailyHistoryPoint,
   DataSourceInfo,
   Intervention,
   OrgSettings,
@@ -64,6 +65,8 @@ export const api = {
       body: JSON.stringify({ query, category }),
     }),
 
+  getHistory: (days = 30) =>
+    request<{ employee_id: string; days: DailyHistoryPoint[] }>(`/me/history?days=${days}`),
   listInterventions: () => request<Intervention[]>("/me/interventions"),
   respondToIntervention: (id: string, status: string, response?: string) =>
     request<Intervention>(`/me/interventions/${id}/respond`, {
@@ -94,6 +97,10 @@ export const api = {
       "/admin/data-sources"
     ),
   getAuditLogs: () => request<{ logs: AuditLogEntry[] }>("/admin/audit-logs"),
+  getIntegrations: () =>
+    request<{
+      connectors: { key: string; label: string; auth_kind: string; implemented: boolean }[];
+    }>("/admin/integrations"),
   applyRetention: () =>
     request<{ cutoff: string; daily_features_deleted: number; telemetry_events_deleted: number }>(
       "/admin/retention/apply",

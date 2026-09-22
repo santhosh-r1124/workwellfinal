@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { api } from "../api/client";
 import type { Intervention } from "../types";
+import Icon from "./Icon";
 
 const TYPE_LABEL: Record<string, string> = {
   focus_block: "Protected focus block",
@@ -44,56 +45,48 @@ export default function InterventionCard({
   const answered = intervention.status !== "proposed";
 
   return (
-    <div className="rounded-lg border border-sky-900/60 bg-sky-950/30 p-4 mb-3">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-xs uppercase tracking-wide text-sky-400/80 mb-1">
+    <article className="panel border-accent/25 bg-accent-ghost/40 p-4 mb-3 animate-fade-up">
+      <div className="flex items-start justify-between gap-4 mb-2">
+        <div className="flex items-center gap-2 text-accent">
+          <Icon name="spark" className="w-3.5 h-3.5" />
+          <span className="font-mono text-[10.5px] uppercase tracking-[0.06em]">
             {TYPE_LABEL[intervention.type] || intervention.type}
-          </div>
-          <p className="text-sm text-slate-200">{intervention.message}</p>
+          </span>
         </div>
-        <span className="text-xs text-slate-500 shrink-0">
+        <time className="font-mono text-[11px] text-text-faint shrink-0">
           {intervention.created_at.slice(0, 10)}
-        </span>
+        </time>
       </div>
 
+      <p className="text-[13.5px] leading-relaxed mb-3">{intervention.message}</p>
+
       {!answered && (
-        <div className="flex gap-2 mt-3">
-          <button
-            disabled={busy}
-            onClick={() => act("accepted")}
-            className="px-3 py-1.5 text-sm rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 font-medium disabled:opacity-50"
-          >
+        <div className="flex flex-wrap gap-2">
+          <button disabled={busy} onClick={() => act("accepted")} className="btn-primary">
             That helps
           </button>
-          <button
-            disabled={busy}
-            onClick={() => act("snoozed")}
-            className="px-3 py-1.5 text-sm rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-50"
-          >
+          <button disabled={busy} onClick={() => act("snoozed")} className="btn-quiet">
             Later
           </button>
-          <button
-            disabled={busy}
-            onClick={() => act("dismissed")}
-            className="px-3 py-1.5 text-sm rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-50"
-          >
+          <button disabled={busy} onClick={() => act("dismissed")} className="btn-quiet">
             Not useful
           </button>
         </div>
       )}
 
       {answered && !rated && (
-        <div className="flex items-center gap-2 mt-3">
-          <span className="text-xs text-slate-500">
-            Marked {intervention.status}. How useful was this, 1-5?
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[12px] text-text-faint">
+            Marked {intervention.status}. How useful was this?
           </span>
           {[1, 2, 3, 4, 5].map((n) => (
             <button
               key={n}
               disabled={busy}
               onClick={() => rate(n)}
-              className="w-7 h-7 text-xs rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-50"
+              className="w-8 h-8 rounded-lg border border-line bg-surface-sunken font-mono text-[12px]
+                         text-text-muted hover:text-text hover:bg-surface-raised disabled:opacity-50"
+              aria-label={`Rate ${n} out of 5`}
             >
               {n}
             </button>
@@ -101,7 +94,9 @@ export default function InterventionCard({
         </div>
       )}
 
-      {rated && <p className="text-xs text-slate-500 mt-3">Thanks - this tunes future nudges.</p>}
-    </div>
+      {rated && (
+        <p className="text-[12px] text-text-faint">Thanks — this tunes future suggestions.</p>
+      )}
+    </article>
   );
 }

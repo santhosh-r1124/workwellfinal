@@ -20,10 +20,14 @@ export interface BaselineResponse {
 export interface PatternSignal {
   name: string;
   change: number;
+  /** How to read `change`: a fraction of baseline, a multiple of the
+   *  signal's typical variation, or a raw delta. */
+  change_kind?: "relative" | "spread" | "absolute";
   anomalous_days: number;
 }
 
 export interface PatternRecord {
+  id?: string;
   date: string;
   state: string;
   confidence: number;
@@ -82,6 +86,16 @@ export interface OrgSettings {
   model_name: string | null;
   disabled_sources: string[];
   allowed_integrations: string[];
+}
+
+export interface DailyHistoryPoint {
+  date: string;
+  work_duration: number;
+  after_hours: number;
+  meeting_hours: number;
+  focus_minutes: number;
+  average_break_gap: number;
+  context_switches: number;
 }
 
 export interface Intervention {

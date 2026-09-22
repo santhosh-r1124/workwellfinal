@@ -1,70 +1,37 @@
 import { Route, Routes } from "react-router-dom";
 
-import NavBar from "./components/NavBar";
+import AppShell from "./components/AppShell";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Admin from "./pages/Admin";
-import Chat from "./pages/Chat";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import PatternTimeline from "./pages/PatternTimeline";
 import PrivacyCenter from "./pages/PrivacyCenter";
 import TeamAnalytics from "./pages/TeamAnalytics";
 
+const PAGES: { path: string; element: React.ReactElement }[] = [
+  { path: "/", element: <Dashboard /> },
+  { path: "/timeline", element: <PatternTimeline /> },
+  { path: "/privacy", element: <PrivacyCenter /> },
+  { path: "/teams", element: <TeamAnalytics /> },
+  { path: "/admin", element: <Admin /> },
+];
+
 export default function App() {
   return (
-    <div className="min-h-screen bg-slate-950">
-      <NavBar />
-      <Routes>
-        <Route path="/login" element={<Login />} />
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      {PAGES.map(({ path, element }) => (
         <Route
-          path="/"
+          key={path}
+          path={path}
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <AppShell>{element}</AppShell>
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/timeline"
-          element={
-            <ProtectedRoute>
-              <PatternTimeline />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/privacy"
-          element={
-            <ProtectedRoute>
-              <PrivacyCenter />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/chat"
-          element={
-            <ProtectedRoute>
-              <Chat />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/teams"
-          element={
-            <ProtectedRoute>
-              <TeamAnalytics />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute>
-              <Admin />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </div>
+      ))}
+    </Routes>
   );
 }

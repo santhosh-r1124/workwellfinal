@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from apps.backend.api.deps import get_current_user, get_db
 from apps.backend.models import SelfReport, User
-from apps.backend.repositories import agent_repo
+from apps.backend.repositories import agent_repo, telemetry_repo
 from apps.backend.services import telemetry_service
 from shared.enums.intervention import InterventionStatus
 
@@ -100,6 +100,31 @@ def submit_feedback(
 
     row = agent_repo.add_feedback(db, intervention_id, user.id, payload.rating, payload.comment)
     return {"id": row.id, "rating": row.rating, "comment": row.comment}
+
+
+@router.get("/history")
+def daily_history(
+    days: int = 30, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Daily feature history for the caller, oldest first - what the
+    dashboard sparklines are drawn from, so the trend line is the real
+    series rather than decoration."""
+    rows = telemetry_repo.daily_features_history(db, user.id, limit_days=min(days, 120))
+    return {
+        "employee_id": user.id,
+        "days": [
+            {
+                "date": row.date.isoformat(),
+                "work_duration": row.work_duration,
+                "after_hours": row.after_hours,
+                "meeting_hours": row.meeting_hours,
+                "focus_minutes": row.focus_minutes,
+                "average_break_gap": row.average_break_gap,
+                "context_switches": row.context_switches,
+            }
+            for row in rows
+        ],
+    }
 
 
 @router.get("/self-report")

@@ -1,13 +1,26 @@
+import logging
+
 from sqlalchemy.orm import Session
 
 from agents.providers import get_provider
 from apps.backend.models import KnowledgeDocument
 from apps.backend.repositories import knowledge_repo
 
+logger = logging.getLogger("workwell.retrieval")
+
 
 def retrieve(db: Session, query: str, top_k: int = 4, category: str | None = None) -> list[dict]:
     provider = get_provider()
-    [embedding] = provider.embed([query])
+
+    # Embedding needs the provider, so an outage costs retrieval. Returning
+    # no sources degrades the answer; raising would take down the whole
+    # dashboard, which is the wrong trade for a wellness tool.
+    try:
+        [embedding] = provider.embed([query])
+    except Exception:
+        logger.warning("retrieval unavailable: embedding provider failed")
+        return []
+
     results = knowledge_repo.similarity_search(db, embedding, top_k=top_k, category=category)
 
     output = []

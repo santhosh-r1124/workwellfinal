@@ -13,6 +13,24 @@ SYSTEM_PROMPT = (
 )
 
 
+def describe_signal(signal: dict) -> str:
+    """Signals centred near zero carry their unit, because a percentage of a
+    near-zero centre is a meaningless number to hand an LLM - or a person."""
+    name = signal["name"].replace("_", " ")
+    change = signal["change"]
+    days = signal["anomalous_days"]
+    kind = signal.get("change_kind", "relative")
+
+    if kind == "spread":
+        amount = f"{change:+.1f}x its usual variation"
+    elif kind == "absolute":
+        amount = f"{change:+.2f}"
+    else:
+        amount = f"{change:+.0%}"
+
+    return f"{name} changed by {amount} over {days} days"
+
+
 def build_recommendation(
     db: Session, pattern: dict, context: dict, intervention: dict, provider: AIProvider
 ) -> dict:
@@ -21,10 +39,7 @@ def build_recommendation(
     ) or "workplace wellness"
     sources = retrieve(db, query_terms, top_k=3)
 
-    observations = [
-        f"{s['name'].replace('_', ' ')} changed by {s['change']:+.0%} over {s['anomalous_days']} days"
-        for s in pattern.get("signals", [])
-    ]
+    observations = [describe_signal(s) for s in pattern.get("signals", [])]
 
     guidance_block = "\n".join(f"- {s['content'][:300]}" for s in sources) or "(no matching guidance found)"
     prompt = (

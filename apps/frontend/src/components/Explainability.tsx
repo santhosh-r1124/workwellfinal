@@ -1,3 +1,4 @@
+import { formatChange } from "../lib/formatSignal";
 import type { PatternSignal } from "../types";
 
 export default function Explainability({
@@ -8,22 +9,31 @@ export default function Explainability({
   dataNotUsed: string[];
 }) {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-slate-200 mb-2">Why this was detected</h3>
+    <section className="panel p-5">
+      <h2 className="eyebrow mb-3">Why this was detected</h2>
+
       {signals.length === 0 ? (
-        <p className="text-sm text-slate-500">No sustained deviation from your baseline right now.</p>
+        <p className="text-[13px] text-text-muted">
+          No sustained deviation from your baseline right now.
+        </p>
       ) : (
-        <ul className="space-y-1 text-sm text-slate-300">
+        <ul className="space-y-2">
           {signals.map((s) => (
-            <li key={s.name}>
-              {s.change >= 0 ? "+" : ""}
-              {Math.round(s.change * 100)}% {s.name.replace(/_/g, " ")} over {s.anomalous_days} days
+            <li key={s.name} className="flex items-center justify-between gap-4 text-[13.5px]">
+              <span className="capitalize">{s.name.replace(/_/g, " ")}</span>
+              <span className="font-mono text-[12px] tabular-nums text-accent shrink-0">
+                {formatChange(s)}
+                <span className="text-text-faint ml-2">{s.anomalous_days}d</span>
+              </span>
             </li>
           ))}
         </ul>
       )}
-      <h4 className="text-xs font-semibold text-slate-500 mt-4 mb-1 uppercase tracking-wide">Data not used</h4>
-      <p className="text-xs text-slate-500">{dataNotUsed.join(" · ")}</p>
-    </div>
+
+      <div className="mt-5 pt-4 border-t border-line-soft">
+        <h3 className="eyebrow mb-1.5">Data not used</h3>
+        <p className="text-[12px] text-text-faint">{dataNotUsed.join(" · ")}</p>
+      </div>
+    </section>
   );
 }

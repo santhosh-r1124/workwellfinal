@@ -19,8 +19,23 @@ TRACKED_METRICS = [
 ]
 
 
+def has_behavioral_data(day: dict) -> bool:
+    """A day with no recorded work is an absence of measurement, not an
+    observation of zero.
+
+    A daily-feature row gets created whenever anything touches the day -
+    including a self-report submitted before any telemetry has arrived. Left
+    in, those rows read as a day of zero work: they drag the baseline down
+    and make the dashboard show every signal at -100%.
+    """
+    return (day.get("work_duration") or 0) > 0
+
+
 def recompute_baselines(db: Session, employee_id: str) -> dict:
-    history = telemetry_repo.daily_features_history(db, employee_id, limit_days=90)
+    all_history = telemetry_repo.daily_features_history(db, employee_id, limit_days=90)
+    measured = [d for d in all_history if has_behavioral_data(telemetry_repo.daily_feature_to_dict(d))]
+
+    history = measured
     history_dicts = [telemetry_repo.daily_feature_to_dict(d) for d in history]
     dates = [d.date for d in history]
 
@@ -61,8 +76,16 @@ def recompute_baselines(db: Session, employee_id: str) -> dict:
 
 def get_baseline_response(db: Session, employee_id: str) -> dict:
     rows = baseline_repo.list_baselines(db, employee_id)
-    history = telemetry_repo.daily_features_history(db, employee_id, limit_days=1)
-    current_dict = telemetry_repo.daily_feature_to_dict(history[-1]) if history else {}
+
+    # "Current" is the most recent day that actually has behavioral data, not
+    # simply the most recent row - see has_behavioral_data.
+    recent = telemetry_repo.daily_features_history(db, employee_id, limit_days=14)
+    measured = [
+        telemetry_repo.daily_feature_to_dict(d)
+        for d in recent
+        if has_behavioral_data(telemetry_repo.daily_feature_to_dict(d))
+    ]
+    current_dict = measured[-1] if measured else {}
 
     metrics = {}
     for row in rows:
@@ -85,14 +108,19 @@ def get_baseline_response(db: Session, employee_id: str) -> dict:
 
 
 def get_patterns(db: Session, employee_id: str) -> list[dict]:
+    """One entry per day, newest state wins. Re-running the analysis writes a
+    fresh row rather than updating in place, so without this the timeline
+    shows the same day several times over."""
     rows = baseline_repo.recent_pattern_states(db, employee_id)
-    return [
-        {
+
+    by_date: dict[str, dict] = {}
+    for r in rows:
+        by_date[r.date.isoformat()] = {
+            "id": r.id,
             "date": r.date.isoformat(),
             "state": r.state,
             "confidence": r.confidence,
             "duration_days": r.duration_days,
             "signals": r.signals,
         }
-        for r in rows
-    ]
+    return [by_date[key] for key in sorted(by_date)]

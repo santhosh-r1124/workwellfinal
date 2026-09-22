@@ -29,10 +29,13 @@ def list_baselines(db: Session, employee_id: str) -> list[EmployeeBaseline]:
 
 
 def recent_pattern_states(db: Session, employee_id: str, limit: int = 30) -> list[PatternStateRecord]:
+    # created_at breaks ties within a day: every orchestration run writes a
+    # new row, so a single date can hold several states and the newest is
+    # the one that reflects current evidence.
     stmt = (
         select(PatternStateRecord)
         .where(PatternStateRecord.employee_id == employee_id)
-        .order_by(PatternStateRecord.date.desc())
+        .order_by(PatternStateRecord.date.desc(), PatternStateRecord.created_at.desc())
         .limit(limit)
     )
     return list(reversed(list(db.scalars(stmt))))

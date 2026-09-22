@@ -3,10 +3,10 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { SelfReportStatus } from "../types";
 
-const SCALES: { key: "stress" | "energy" | "recovery"; label: string; hint: string }[] = [
-  { key: "stress", label: "Stress", hint: "1 = calm, 5 = very stressed" },
-  { key: "energy", label: "Energy", hint: "1 = depleted, 5 = energised" },
-  { key: "recovery", label: "Recovery", hint: "1 = poor rest, 5 = well rested" },
+const SCALES: { key: "stress" | "energy" | "recovery"; label: string; low: string; high: string }[] = [
+  { key: "stress", label: "Stress", low: "calm", high: "very stressed" },
+  { key: "energy", label: "Energy", low: "depleted", high: "energised" },
+  { key: "recovery", label: "Recovery", low: "poor rest", high: "well rested" },
 ];
 
 export default function CheckIn() {
@@ -42,48 +42,54 @@ export default function CheckIn() {
   };
 
   if (!status) return null;
-
   const showForm = editing || !status.submitted;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 mb-6">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-semibold text-slate-200">Daily check-in</h2>
+    <section className="panel p-5 mb-7">
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <h2 className="eyebrow">Daily check-in</h2>
         {status.submitted && !editing && (
-          <button onClick={() => setEditing(true)} className="text-xs text-sky-400 hover:underline">
+          <button onClick={() => setEditing(true)} className="text-[12px] text-accent hover:underline">
             Update
           </button>
         )}
       </div>
-      <p className="text-xs text-slate-500 mb-4">
-        Your own words carry more weight than any signal we measure - this is what the system checks
+      <p className="text-[12.5px] text-text-faint mb-4">
+        Your own words carry more weight than any signal we measure — this is what the system checks
         itself against.
       </p>
 
       {!showForm && (
-        <p className="text-sm text-slate-300">
-          Logged today · stress {status.stress} · energy {status.energy} · recovery{" "}
-          {status.recovery}
-        </p>
+        <div className="flex flex-wrap gap-2">
+          {SCALES.map((s) => (
+            <span key={s.key} className="chip border-line text-text-muted">
+              {s.label.toLowerCase()} {status[s.key]}
+            </span>
+          ))}
+        </div>
       )}
 
       {showForm && (
         <>
-          {SCALES.map(({ key, label, hint }) => (
-            <div key={key} className="mb-3">
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-slate-300">{label}</span>
-                <span className="text-slate-600 text-xs">{hint}</span>
+          {SCALES.map(({ key, label, low, high }) => (
+            <div key={key} className="mb-4 last:mb-0">
+              <div className="flex justify-between items-baseline text-[13px] mb-1.5">
+                <span className="font-medium">{label}</span>
+                <span className="text-[11px] text-text-faint">
+                  1 = {low} · 5 = {high}
+                </span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
                     key={n}
                     onClick={() => setValues({ ...values, [key]: n })}
-                    className={`w-9 h-9 rounded-md text-sm ${
+                    aria-pressed={values[key] === n}
+                    aria-label={`${label} ${n}`}
+                    className={`h-9 flex-1 max-w-[52px] rounded-lg font-mono text-[13px] border transition-colors ${
                       values[key] === n
-                        ? "bg-sky-500 text-slate-950 font-medium"
-                        : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                        ? "bg-accent text-[#05131f] border-accent font-semibold"
+                        : "bg-surface-sunken border-line text-text-muted hover:text-text hover:bg-surface-raised"
                     }`}
                   >
                     {n}
@@ -92,15 +98,11 @@ export default function CheckIn() {
               </div>
             </div>
           ))}
-          <button
-            onClick={save}
-            disabled={saving}
-            className="mt-2 px-4 py-2 rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 font-medium text-sm disabled:opacity-50"
-          >
+          <button onClick={save} disabled={saving} className="btn-primary mt-4">
             {saving ? "Saving..." : "Save check-in"}
           </button>
         </>
       )}
-    </div>
+    </section>
   );
 }

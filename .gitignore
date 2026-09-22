@@ -28,6 +28,10 @@ npm-debug.log*
 pgdata/
 postgres-data/
 
+## Redis writes its snapshot into the working directory
+dump.rdb
+*.rdb
+
 ## OS / editors
 .DS_Store
 .idea/

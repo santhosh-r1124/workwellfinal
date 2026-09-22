@@ -55,10 +55,16 @@ export const api = {
   getPatterns: (employeeId: string) =>
     request<{ employee_id: string; patterns: PatternRecord[] }>(`/employees/${employeeId}/patterns`),
   chat: (message: string, sessionId: string | null) =>
-    request<{ session_id: string; reply: string; sources: ChatMessage["sources"]; safety_flagged: boolean }>(
-      "/chat",
-      { method: "POST", body: JSON.stringify({ employee_id: "", session_id: sessionId, message }) }
-    ),
+    request<{
+      session_id: string;
+      reply: string;
+      sources: ChatMessage["sources"];
+      safety_flagged: boolean;
+      degraded?: boolean;
+    }>("/chat", {
+      method: "POST",
+      body: JSON.stringify({ employee_id: "", session_id: sessionId, message }),
+    }),
   ragQuery: (query: string, category?: string) =>
     request<{ answer: string; sources: { title: string; url?: string | null }[] }>("/rag/query", {
       method: "POST",

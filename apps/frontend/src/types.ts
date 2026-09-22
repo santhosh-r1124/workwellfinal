@@ -58,6 +58,8 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   sources?: ChatSource[];
+  /** The reply is a deterministic fallback, not model text. */
+  degraded?: boolean;
 }
 
 export interface TeamMetricChange {

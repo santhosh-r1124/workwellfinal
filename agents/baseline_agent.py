@@ -1,3 +1,4 @@
+from agents.narration import safe_generate
 from agents.providers.base import AIProvider
 
 SYSTEM_PROMPT = (
@@ -26,6 +27,16 @@ def explain_baseline(baseline_response: dict, provider: AIProvider) -> dict:
         f"- {c['metric']}: baseline={c['baseline']}, current={c['current']}, deviation={c['deviation']:+}"
         for c in changes[:6]
     )
-    explanation = provider.generate(prompt, system=SYSTEM_PROMPT)
+    top = changes[0]
+    fallback = (
+        f"{top['metric'].replace('_', ' ')} moved from {top['baseline']} to {top['current']} "
+        f"against your own baseline."
+    )
+    explanation, narrated = safe_generate(provider, prompt, SYSTEM_PROMPT, fallback)
 
-    return {"changes": changes, "confidence": round(confidence, 2), "explanation": explanation}
+    return {
+        "changes": changes,
+        "confidence": round(confidence, 2),
+        "explanation": explanation,
+        "narrated": narrated,
+    }

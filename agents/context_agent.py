@@ -1,3 +1,4 @@
+from agents.narration import safe_generate
 from agents.providers.base import AIProvider
 
 SYSTEM_PROMPT = (
@@ -38,10 +39,17 @@ def analyze_context(pattern: dict, employee_note: str | None = None) -> dict:
         f"Candidate contexts: {', '.join(likely_context)}.\n"
         f"Employee note: {employee_note or '(none provided)'}"
     )
-    explanation = provider.generate(prompt, system=SYSTEM_PROMPT)
+    readable = ", ".join(c.replace("_", " ") for c in likely_context)
+    explanation, narrated = safe_generate(
+        provider,
+        prompt,
+        SYSTEM_PROMPT,
+        fallback=f"{readable} may explain part of this change.",
+    )
 
     return {
         "likely_context": likely_context,
         "context_confidence": context_confidence,
         "explanation": explanation,
+        "narrated": narrated,
     }

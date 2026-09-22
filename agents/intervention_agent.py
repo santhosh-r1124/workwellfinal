@@ -1,3 +1,4 @@
+from agents.narration import safe_generate
 from agents.providers.base import AIProvider
 from shared.enums.intervention import InterventionType
 from shared.enums.pattern_states import PatternState
@@ -41,9 +42,16 @@ def propose_intervention(risk: dict, provider: AIProvider) -> dict:
     rationale = INTERVENTION_RATIONALE[intervention_type]
 
     if intervention_type == InterventionType.NO_ACTION:
-        message = ""
-    else:
-        prompt = f"Intervention type: {intervention_type.value}. Reason: {rationale}"
-        message = provider.generate(prompt, system=SYSTEM_PROMPT)
+        return {"type": intervention_type.value, "message": "", "rationale": rationale, "narrated": True}
 
-    return {"type": intervention_type.value, "message": message, "rationale": rationale}
+    prompt = f"Intervention type: {intervention_type.value}. Reason: {rationale}"
+    # The rationale is already a complete, human-readable sentence, so a
+    # model outage costs tone rather than meaning.
+    message, narrated = safe_generate(provider, prompt, SYSTEM_PROMPT, fallback=rationale)
+
+    return {
+        "type": intervention_type.value,
+        "message": message,
+        "rationale": rationale,
+        "narrated": narrated,
+    }

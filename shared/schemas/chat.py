@@ -12,3 +12,6 @@ class ChatMessageOut(BaseModel):
     reply: str
     sources: list[dict] = []
     safety_flagged: bool = False
+    # True when the reply is a deterministic fallback rather than model text,
+    # so the UI can be honest about which one the employee is reading.
+    degraded: bool = False

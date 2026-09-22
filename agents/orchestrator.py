@@ -61,6 +61,13 @@ def run_orchestration(db: Session, employee_id: str, employee_note: str | None =
     record_intervention(intervention["type"])
     audit_agent.log_agent_run(db, employee_id, agent_run.id, risk["state"], intervention["type"])
 
+    # True when the model couldn't be reached for any step. The evidence is
+    # still complete - only the prose around it is missing - and the UI says
+    # so rather than passing a fallback off as a generated explanation.
+    narrative_degraded = not all(
+        step.get("narrated", True) for step in (context, intervention, wellness)
+    )
+
     return {
         "employee_id": employee_id,
         "pattern": pattern,
@@ -68,5 +75,6 @@ def run_orchestration(db: Session, employee_id: str, employee_note: str | None =
         "risk": risk,
         "intervention": intervention,
         "wellness": wellness,
+        "narrative_degraded": narrative_degraded,
         "agent_run_id": agent_run.id,
     }

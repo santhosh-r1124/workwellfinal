@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from agents.narration import safe_generate
 from agents.providers.base import AIProvider
 from rag.retrieval.retriever import retrieve
 
@@ -47,11 +48,18 @@ def build_recommendation(
         f"Possible context: {', '.join(context.get('likely_context', [])) or 'none identified'}.\n"
         f"Guidance excerpts:\n{guidance_block}"
     )
-    recommendation = provider.generate(prompt, system=SYSTEM_PROMPT)
+    # Falling back to the intervention's own rationale keeps the employee
+    # with something actionable rather than an error.
+    fallback = intervention.get("rationale") or (
+        "Here is what changed in your work pattern. A tailored suggestion isn't "
+        "available right now."
+    )
+    recommendation, narrated = safe_generate(provider, prompt, SYSTEM_PROMPT, fallback)
 
     return {
         "observations": observations,
         "context_note": context.get("explanation"),
         "recommendation": recommendation,
+        "narrated": narrated,
         "sources": [{"title": s["title"], "url": s["url"]} for s in sources],
     }

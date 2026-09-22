@@ -53,7 +53,12 @@ export default function AssistantBubble() {
       setSessionId(res.session_id);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: res.reply, sources: res.sources || [] },
+        {
+          role: "assistant",
+          content: res.reply,
+          sources: res.sources || [],
+          degraded: res.degraded,
+        },
       ]);
     } catch {
       setMessages((prev) => [
@@ -107,6 +112,11 @@ export default function AssistantBubble() {
                 }`}
               >
                 <p className="whitespace-pre-wrap">{m.content}</p>
+                {m.degraded && (
+                  <p className="mt-2 pt-2 border-t border-line-soft text-[11px] text-attention">
+                    Written from the measured evidence — the language model was unreachable.
+                  </p>
+                )}
                 {m.sources && m.sources.length > 0 && (
                   <p className="mt-2 pt-2 border-t border-line-soft text-[11px] text-text-faint">
                     {m.sources.map((s) => s.title).join(" · ")}

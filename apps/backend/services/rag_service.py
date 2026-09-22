@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from agents.narration import safe_generate
 from agents.providers import get_provider
 from rag.retrieval.retriever import retrieve
 
@@ -19,7 +20,13 @@ def answer_query(db: Session, query: str, category: str | None, top_k: int = 4) 
     provider = get_provider()
     context = "\n\n".join(f"[{i + 1}] {s['title']}: {s['content']}" for i, s in enumerate(sources))
     prompt = f"Question: {query}\n\nSource excerpts:\n{context}"
-    answer = provider.generate(prompt, system=SYSTEM_PROMPT)
+
+    # Without the model we can still hand back the retrieved guidance, which
+    # is the part that was actually vetted.
+    fallback = "Couldn't summarise right now. The most relevant guidance is: " + "; ".join(
+        s["title"] for s in sources
+    )
+    answer, _ = safe_generate(provider, prompt, SYSTEM_PROMPT, fallback)
 
     return {
         "answer": answer,

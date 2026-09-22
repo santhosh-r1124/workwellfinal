@@ -37,6 +37,27 @@ def create_intervention(
     return row
 
 
+def recent_interventions(db: Session, employee_id: str, limit: int = 20) -> list[Intervention]:
+    stmt = (
+        select(Intervention)
+        .where(Intervention.employee_id == employee_id)
+        .order_by(Intervention.created_at.desc())
+        .limit(limit)
+    )
+    return list(db.scalars(stmt))
+
+
+def get_intervention_for_employee(
+    db: Session, intervention_id: str, employee_id: str
+) -> Intervention | None:
+    """Scoped lookup: an intervention id alone must never be enough to read
+    or act on another employee's nudge."""
+    row = db.get(Intervention, intervention_id)
+    if row is None or row.employee_id != employee_id:
+        return None
+    return row
+
+
 def respond_to_intervention(db: Session, intervention_id: str, status: str, response: str | None) -> Intervention | None:
     from datetime import datetime, timezone
 

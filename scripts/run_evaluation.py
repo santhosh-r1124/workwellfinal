@@ -9,6 +9,14 @@ known generative signal. It is not evidence of real-world clinical validity,
 which would require consented longitudinal data and validated instruments.
 """
 
+import sys
+from pathlib import Path
+
+# So `python scripts/...` works from a clean shell, without the caller
+# having to know to export PYTHONPATH. The container sets it; a developer
+# following the README from a fresh terminal does not.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import argparse
 import json
 

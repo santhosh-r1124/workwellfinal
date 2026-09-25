@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
-import type { AuditLogEntry, OrgSettings } from "../types";
+import Toggle from "../components/Toggle";
+import type { AuditLogEntry, OrgSettings, OrgUser } from "../types";
 
 interface Connector {
   key: string;
   label: string;
   auth_kind: string;
   implemented: boolean;
+  allowed: boolean;
 }
 
 export default function Admin() {
@@ -16,6 +18,7 @@ export default function Admin() {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [sources, setSources] = useState<{ key: string; label: string; never_collectible: boolean }[]>([]);
   const [connectors, setConnectors] = useState<Connector[]>([]);
+  const [users, setUsers] = useState<OrgUser[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,6 +27,7 @@ export default function Admin() {
     api.getAuditLogs().then((r) => setLogs(r.logs)).catch(() => undefined);
     api.getAdminDataSources().then((r) => setSources(r.data_sources)).catch(() => undefined);
     api.getIntegrations().then((r) => setConnectors(r.connectors)).catch(() => undefined);
+    api.getOrgUsers().then((r) => setUsers(r.users)).catch(() => undefined);
   };
 
   useEffect(load, []);
@@ -33,6 +37,22 @@ export default function Admin() {
     try {
       setSettings(await api.updateAdminSettings(patch));
       setStatus("Saved.");
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const setActive = async (user: OrgUser) => {
+    setStatus(null);
+    setError(null);
+    try {
+      await api.setUserActive(user.id, !user.is_active);
+      setStatus(
+        user.is_active
+          ? `${user.email} deactivated - they are no longer analysed and their session ends immediately.`
+          : `${user.email} reactivated.`
+      );
+      load();
     } catch (e) {
       setError(String(e));
     }
@@ -105,25 +125,16 @@ export default function Admin() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="text-[13px] font-medium">Interventions enabled</div>
-              <p className="text-[11.5px] text-text-faint">Turns off proactive nudges org-wide.</p>
+              <p className="text-[11.5px] text-text-faint">
+                Off is observe-only: everyone still sees their own dashboard, but the system
+                proposes no nudges and sends no notifications.
+              </p>
             </div>
-            <button
-              onClick={() => save({ interventions_enabled: !settings.interventions_enabled })}
-              role="switch"
-              aria-checked={settings.interventions_enabled}
-              aria-label="Interventions enabled"
-              className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
-                settings.interventions_enabled
-                  ? "bg-accent-deep border-accent-deep"
-                  : "bg-surface-raised border-line"
-              }`}
-            >
-              <span
-                className={`absolute top-[3px] left-[3px] h-4 w-4 rounded-full bg-white transition-transform ${
-                  settings.interventions_enabled ? "translate-x-5" : ""
-                }`}
-              />
-            </button>
+            <Toggle
+              checked={settings.interventions_enabled}
+              onChange={() => save({ interventions_enabled: !settings.interventions_enabled })}
+              label="Interventions enabled"
+            />
           </div>
 
           <button onClick={runRetention} className="btn-quiet">
@@ -168,18 +179,55 @@ export default function Admin() {
               <div className="text-[13.5px]">{c.label}</div>
               <div className="text-[11.5px] text-text-faint">{c.auth_kind}</div>
             </div>
-            <span
-              className={`chip shrink-0 ${
-                c.implemented
-                  ? "border-accent/30 bg-accent-ghost text-accent"
-                  : "border-line text-text-faint"
-              }`}
-            >
-              {c.implemented ? "implemented" : "requires setup"}
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {!c.allowed && (
+                <span className="chip border-line text-text-faint">not on allowlist</span>
+              )}
+              <span
+                className={`chip ${
+                  c.implemented
+                    ? "border-accent/30 bg-accent-ghost text-accent"
+                    : "border-line text-text-faint"
+                }`}
+              >
+                {c.implemented ? "implemented" : "requires setup"}
+              </span>
+            </div>
           </div>
         ))}
       </div>
+
+      <h2 className="eyebrow mb-2.5">People</h2>
+      <div className="panel overflow-hidden mb-2">
+        {users.map((u, i) => (
+          <div
+            key={u.id}
+            className={`flex items-center justify-between gap-4 px-5 py-3 ${
+              i < users.length - 1 ? "border-b border-line-soft" : ""
+            }`}
+          >
+            <div className="min-w-0">
+              <div className="text-[13.5px] truncate">{u.full_name}</div>
+              <div className="text-[11.5px] text-text-faint truncate">
+                {u.email} · {u.role}
+                {u.team ? ` · ${u.team}` : ""}
+              </div>
+            </div>
+            <Toggle
+              checked={u.is_active}
+              onChange={() => setActive(u)}
+              label={`${u.is_active ? "Deactivate" : "Reactivate"} ${u.email}`}
+            />
+          </div>
+        ))}
+        {users.length === 0 && (
+          <p className="px-5 py-6 text-center text-[13px] text-text-muted">No people to show.</p>
+        )}
+      </div>
+      <p className="text-[12px] text-text-faint mb-7">
+        Deactivating someone stops the daily analysis and ends their session on the next request.
+        Their history stays until the retention window above expires it.
+      </p>
 
       <h2 className="eyebrow mb-2.5">Recent audit log</h2>
       <div className="panel overflow-hidden max-h-96 overflow-y-auto">

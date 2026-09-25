@@ -48,6 +48,33 @@ class SelfReportIn(BaseModel):
     date: str | None = None
 
 
+class PreferencesOut(BaseModel):
+    notifications_enabled: bool
+
+
+class PreferencesUpdate(BaseModel):
+    notifications_enabled: bool
+
+
+@router.get("/preferences", response_model=PreferencesOut)
+def get_preferences(user: User = Depends(get_current_user)):
+    return PreferencesOut(notifications_enabled=user.notifications_enabled)
+
+
+@router.patch("/preferences", response_model=PreferencesOut)
+def update_preferences(
+    payload: PreferencesUpdate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Opting out of email is not opting out of support: suggestions still
+    appear on the dashboard. Withdrawing *consent* is a different control,
+    in the Privacy Center, and deliberately not merged with this one."""
+    user.notifications_enabled = payload.notifications_enabled
+    db.commit()
+    return PreferencesOut(notifications_enabled=user.notifications_enabled)
+
+
 @router.get("/interventions", response_model=list[InterventionOut])
 def list_interventions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return [

@@ -3,11 +3,11 @@ from sqlalchemy.orm import Session
 from agents import audit_agent, context_agent, intervention_agent, wellness_agent
 from agents.privacy_agent import has_sufficient_consent
 from agents.providers import get_provider
-from apps.backend.core.observability import record_intervention
-from apps.backend.repositories import agent_repo, baseline_repo
-from apps.backend.services import baseline_service
+from apps.backend.core.observability import record_intervention, record_intervention_suppressed
+from apps.backend.repositories import agent_repo, baseline_repo, chat_repo
+from apps.backend.services import baseline_service, org_policy
 from ml.risk.risk_fusion import compute_component_scores, fuse_risk
-from shared.constants.wellbeing import PERSISTENCE_MIN_DAYS
+from shared.constants.wellbeing import INTERVENTION_COOLDOWN_DAYS, PERSISTENCE_MIN_DAYS
 
 
 def run_orchestration(db: Session, employee_id: str, employee_note: str | None = None) -> dict:
@@ -38,7 +38,11 @@ def run_orchestration(db: Session, employee_id: str, employee_note: str | None =
 
     persistent = pattern.get("duration_days", 0) >= PERSISTENCE_MIN_DAYS
 
-    context = context_agent.analyze_context(pattern, employee_note)
+    # A scheduled run has no one to ask, so it reuses the last thing the
+    # employee volunteered. Otherwise "it's because of a release" would
+    # have to be re-explained every single day.
+    note = employee_note or chat_repo.latest_employee_note(db, employee_id)
+    context = context_agent.analyze_context(pattern, note)
 
     component_scores = compute_component_scores(pattern.get("signals", []))
     risk = fuse_risk(component_scores, persistent, self_report_strain=0.0, safety_flag=False)
@@ -53,10 +57,29 @@ def run_orchestration(db: Session, employee_id: str, employee_note: str | None =
     agent_run = agent_repo.create_agent_run(
         db, employee_id, pattern_state_id, context, risk, intervention, wellness
     )
-    if intervention["type"] != "no_action":
-        agent_repo.create_intervention(
-            db, employee_id, agent_run.id, intervention["type"], intervention["message"]
+
+    # The run is always recorded; the nudge is not. Once this runs on a
+    # daily schedule rather than only when someone opens the chat, an
+    # unchanged persistent pattern would otherwise produce an identical
+    # nudge every morning.
+    intervention_id = None
+    suppressed = False
+    if intervention["type"] != "no_action" and not org_policy.interventions_enabled(db, employee_id):
+        # Observe-only org: the analysis is still stored and the employee
+        # can still see their own dashboard, but nothing nudges them.
+        suppressed = True
+        record_intervention_suppressed(intervention["type"])
+    elif intervention["type"] != "no_action":
+        existing = agent_repo.intervention_within_cooldown(
+            db, employee_id, intervention["type"], INTERVENTION_COOLDOWN_DAYS
         )
+        if existing:
+            suppressed = True
+            record_intervention_suppressed(intervention["type"])
+        else:
+            intervention_id = agent_repo.create_intervention(
+                db, employee_id, agent_run.id, intervention["type"], intervention["message"]
+            ).id
 
     record_intervention(intervention["type"])
     audit_agent.log_agent_run(db, employee_id, agent_run.id, risk["state"], intervention["type"])
@@ -77,4 +100,6 @@ def run_orchestration(db: Session, employee_id: str, employee_note: str | None =
         "wellness": wellness,
         "narrative_degraded": narrative_degraded,
         "agent_run_id": agent_run.id,
+        "intervention_id": intervention_id,
+        "intervention_suppressed": suppressed,
     }

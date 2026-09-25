@@ -38,3 +38,11 @@ class DataSourceInfo(BaseModel):
     default_enabled: bool
     collectible: bool
     enabled: bool = Field(description="Current consent state for this employee")
+    org_disabled: bool = Field(
+        default=False,
+        description=(
+            "Switched off org-wide by an administrator. Kept separate from "
+            "'collectible': 'WorkWell never collects this' and 'your employer "
+            "turned this off' are different promises and must not read the same."
+        ),
+    )

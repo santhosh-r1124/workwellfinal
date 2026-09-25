@@ -47,6 +47,25 @@ export interface DataSourceInfo {
   default_enabled: boolean;
   collectible: boolean;
   enabled: boolean;
+  /**
+   * Switched off org-wide by an administrator. Kept separate from
+   * `collectible`: "WorkWell never collects this" and "your employer turned
+   * this off" are different promises and must not read the same.
+   */
+  org_disabled: boolean;
+}
+
+export interface Preferences {
+  notifications_enabled: boolean;
+}
+
+export interface OrgUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  team: string | null;
+  is_active: boolean;
 }
 
 export interface ChatSource {

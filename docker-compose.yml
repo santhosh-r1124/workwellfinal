@@ -56,10 +56,42 @@ services:
       - ./database:/app/database
       - ./scripts:/app/scripts
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')\""]
       interval: 10s
       timeout: 5s
       retries: 10
+
+  # Same image as the backend, different command. This is what makes the
+  # product run itself: without it nothing is analysed until someone opens
+  # the assistant and asks.
+  worker:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    command: ["python", "-m", "apps.worker"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      # The backend applies migrations on start and only reports ready once
+      # the schema matches, so waiting on it keeps the worker from querying
+      # columns that do not exist yet.
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./apps/backend:/app/apps/backend
+      - ./apps/worker:/app/apps/worker
+      - ./agents:/app/agents
+      - ./ml:/app/ml
+      - ./rag:/app/rag
+      - ./safety:/app/safety
+      - ./integrations:/app/integrations
+      - ./shared:/app/shared
+      - ./database:/app/database
+      - ./scripts:/app/scripts
 
   frontend:
     build:

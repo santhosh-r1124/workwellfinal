@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
+import Toggle from "../components/Toggle";
 import type { DataSourceInfo } from "../types";
 
 const DISCLOSURE: { key: keyof DataSourceInfo; label: string }[] = [
@@ -16,21 +17,41 @@ export default function PrivacyCenter() {
   const [sources, setSources] = useState<DataSourceInfo[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<boolean | null>(null);
 
   const load = () => {
     api.getConsent().then(setSources);
   };
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+    api
+      .getPreferences()
+      .then((p) => setNotifications(p.notifications_enabled))
+      .catch(() => setNotifications(null));
+  }, []);
 
   const toggle = async (source: DataSourceInfo) => {
-    if (!source.collectible) return;
+    // Org-disabled sources can still be turned *off* by the employee, but
+    // there is nothing to turn off: the server already reports them off.
+    if (!source.collectible || source.org_disabled) return;
     setBusy(source.key);
     try {
       await api.patchConsent(source.key, !source.enabled);
       load();
     } finally {
       setBusy(null);
+    }
+  };
+
+  const toggleNotifications = async () => {
+    if (notifications === null) return;
+    const next = !notifications;
+    setNotifications(next);
+    try {
+      await api.setNotifications(next);
+    } catch {
+      setNotifications(!next);
     }
   };
 
@@ -49,7 +70,14 @@ export default function PrivacyCenter() {
           <div key={s.key} className="panel overflow-hidden">
             <div className="flex items-center justify-between gap-4 p-4">
               <div className="min-w-0">
-                <div className="text-[13.5px] font-medium">{s.label}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[13.5px] font-medium">{s.label}</span>
+                  {s.org_disabled && (
+                    <span className="chip border-attention/30 bg-attention/10 text-attention">
+                      off org-wide
+                    </span>
+                  )}
+                </div>
                 <div className="text-[11.5px] text-text-faint capitalize">{s.category}</div>
               </div>
               <div className="flex items-center gap-3 shrink-0">
@@ -60,22 +88,12 @@ export default function PrivacyCenter() {
                 >
                   {expanded === s.key ? "Hide" : "Details"}
                 </button>
-                <button
-                  onClick={() => toggle(s)}
-                  disabled={busy === s.key}
-                  role="switch"
-                  aria-checked={s.enabled}
-                  aria-label={s.label}
-                  className={`relative h-6 w-11 rounded-full border transition-colors disabled:opacity-50 ${
-                    s.enabled ? "bg-accent-deep border-accent-deep" : "bg-surface-raised border-line"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-[3px] left-[3px] h-4 w-4 rounded-full bg-white transition-transform ${
-                      s.enabled ? "translate-x-5" : ""
-                    }`}
-                  />
-                </button>
+                <Toggle
+                  checked={s.enabled}
+                  onChange={() => toggle(s)}
+                  label={s.label}
+                  disabled={busy === s.key || s.org_disabled}
+                />
               </div>
             </div>
 
@@ -87,11 +105,41 @@ export default function PrivacyCenter() {
                     <dd className="inline text-text-muted">{String(s[key])}</dd>
                   </div>
                 ))}
+                {s.org_disabled && (
+                  <p className="pt-1 text-attention">
+                    An administrator has switched this off for everyone in your organisation, so
+                    nothing is being collected for it regardless of your own setting.
+                  </p>
+                )}
               </dl>
             )}
           </div>
         ))}
       </div>
+
+      {notifications !== null && (
+        <>
+          <h2 className="eyebrow mb-2.5">Notifications</h2>
+          <div className="panel flex items-center justify-between gap-4 p-4 mb-3">
+            <div className="min-w-0">
+              <div className="text-[13.5px] font-medium">Email me when a suggestion is waiting</div>
+              <p className="text-[11.5px] text-text-faint">
+                The email says only that something is waiting — never what. Turning this off does
+                not turn off support: suggestions still appear here.
+              </p>
+            </div>
+            <Toggle
+              checked={notifications}
+              onChange={toggleNotifications}
+              label="Email notifications"
+            />
+          </div>
+          <p className="text-[12px] text-text-faint mb-8">
+            This is a delivery preference, not consent. Consent is the list above, and withdrawing
+            it stops collection entirely.
+          </p>
+        </>
+      )}
 
       <h2 className="eyebrow mb-2.5">Never collected</h2>
       <div className="panel overflow-hidden mb-3">

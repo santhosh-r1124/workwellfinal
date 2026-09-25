@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from apps.backend.models import Consent, ConsentEvent
 from apps.backend.repositories import consent_repo
-from apps.backend.services import audit_service
+from apps.backend.services import audit_service, org_policy
 from shared.constants.data_sources import DATA_SOURCE_BY_KEY
 from shared.enums.data_sources import DataSourceKey
 from shared.schemas.consent import DataSourceInfo
@@ -11,10 +11,11 @@ from shared.schemas.consent import DataSourceInfo
 
 def get_catalog_with_state(db: Session, user_id: str) -> list[DataSourceInfo]:
     current = {c.source: c.enabled for c in consent_repo.list_consents(db, user_id)}
+    org_disabled = org_policy.disabled_sources_for_user(db, user_id)
     result = []
     for definition in DATA_SOURCE_BY_KEY.values():
         enabled = current.get(definition.key.value, definition.default_enabled)
-        if not definition.collectible:
+        if not definition.collectible or definition.key.value in org_disabled:
             enabled = False
         result.append(
             DataSourceInfo(
@@ -29,6 +30,7 @@ def get_catalog_with_state(db: Session, user_id: str) -> list[DataSourceInfo]:
                 default_enabled=definition.default_enabled,
                 collectible=definition.collectible,
                 enabled=enabled,
+                org_disabled=definition.key.value in org_disabled,
             )
         )
     return result
@@ -47,8 +49,22 @@ def _guard_collectible(source: str) -> None:
         )
 
 
+def _guard_org_policy(db: Session, user_id: str, source: str, enabled: bool) -> None:
+    """Turning a source *off* is always permitted - an employee must never
+    be blocked from withdrawing consent, whatever org policy says. Only
+    turning one on can collide with an org-wide switch."""
+    if not enabled:
+        return
+    if source in org_policy.disabled_sources_for_user(db, user_id):
+        raise HTTPException(
+            status_code=400,
+            detail=f"'{source}' has been switched off for your whole organization by an administrator.",
+        )
+
+
 def set_consent(db: Session, user_id: str, source: str, enabled: bool) -> Consent:
     _guard_collectible(source)
+    _guard_org_policy(db, user_id, source, enabled)
 
     existing = consent_repo.get_consent(db, user_id, source)
     previous = existing.enabled if existing else None

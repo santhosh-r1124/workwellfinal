@@ -1,0 +1,5 @@
+# Tooling that runs against the repo, not inside the image.
+-r apps/backend/requirements.txt
+
+ruff==0.8.4
+pyyaml==6.0.2

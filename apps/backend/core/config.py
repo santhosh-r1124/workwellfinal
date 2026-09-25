@@ -31,6 +31,41 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://redis:6379/0"
 
+    # Database pool. Sized for the default uvicorn worker count; raise
+    # together with replica count, and keep (pool_size + max_overflow) *
+    # replicas under Postgres's max_connections or new replicas will fail
+    # to connect under load rather than queue.
+    db_pool_size: int = 10
+    db_max_overflow: int = 5
+    db_pool_recycle_seconds: int = 1800
+
+    # Background worker
+    worker_concurrency: int = 2
+    worker_metrics_port: int = 9100
+    job_lease_seconds: int = 300
+    job_max_attempts: int = 3
+    # Hour (UTC) at which the daily sweep enqueues an analysis for every
+    # employee. Default is after most timezones' working day.
+    daily_analysis_hour_utc: int = 2
+    # How stale a stored analysis may be before a chat message triggers a
+    # background refresh.
+    analysis_max_age_hours: int = 24
+    # Run analysis inline when no worker is deployed. Correct for a
+    # single-process dev or pilot install; turn off in production, where a
+    # worker container runs the same jobs off the request path.
+    inline_analysis_fallback: bool = True
+
+    # Notifications
+    notification_channel: str = "log"  # none | log | smtp | webhook
+    app_base_url: str = "http://localhost:3000"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_starttls: bool = True
+    notification_webhook_url: str = ""
+
     # Privacy
     raw_telemetry_storage: bool = False
     keyboard_content_storage: bool = False
@@ -55,6 +90,10 @@ class Settings(BaseSettings):
     @property
     def ai_configured(self) -> bool:
         return bool(self.gemini_api_key)
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.lower() in {"production", "prod"}
 
 
 @lru_cache

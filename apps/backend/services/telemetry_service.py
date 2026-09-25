@@ -3,6 +3,7 @@ from datetime import date, datetime
 from sqlalchemy.orm import Session
 
 from apps.backend.repositories import consent_repo, telemetry_repo
+from apps.backend.services import org_policy
 from ml.features.daily_vector import build_daily_feature_vector
 from ml.features.derived_features import compute_derived_features
 from shared.constants.data_sources import FIELD_GATES
@@ -10,9 +11,21 @@ from shared.enums.data_sources import DEFAULT_ENABLED_SOURCES, DataSourceKey
 
 
 def consent_map(db: Session, employee_id: str) -> dict[str, bool]:
+    """The one place a source is declared on or off for an employee.
+
+    Two gates, and both can only subtract: the employee's own choice, then
+    the org's. Everything downstream - field stripping on ingest, the
+    orchestrator's consent check, the integration framework - reads this,
+    so an org-disabled source cannot come back through another door.
+    """
     current = {c.source: c.enabled for c in consent_repo.list_consents(db, employee_id)}
+    org_disabled = org_policy.disabled_sources_for_user(db, employee_id)
     return {
-        src.value: current.get(src.value, src in DEFAULT_ENABLED_SOURCES) for src in DataSourceKey
+        src.value: (
+            src.value not in org_disabled
+            and current.get(src.value, src in DEFAULT_ENABLED_SOURCES)
+        )
+        for src in DataSourceKey
     }
 
 

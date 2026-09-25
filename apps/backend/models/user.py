@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from apps.backend.core.database import Base
@@ -20,5 +20,23 @@ class User(Base, TimestampMixin):
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     role_id: Mapped[str] = mapped_column(ForeignKey("roles.id"), nullable=False)
     team: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+
+    # Someone who has left must stop being analysed - continuing to profile
+    # an ex-employee is both pointless and, in most jurisdictions, no longer
+    # covered by the consent they gave. Deactivation stops the daily sweep
+    # and invalidates their existing session on the next request; their
+    # history stays until the retention window expires it.
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+
+    # Opting out of being emailed is not opting out of being helped: the
+    # suggestion still appears on the dashboard. Kept on the user rather
+    # than in the consent table because it governs delivery, not
+    # collection, and conflating the two would let someone withdraw a
+    # notification preference and believe they had withdrawn consent.
+    notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
 
     organization: Mapped["Organization"] = relationship(back_populates="users")

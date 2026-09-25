@@ -19,7 +19,12 @@ def get_consent(user: User = Depends(get_current_user), db: Session = Depends(ge
 def set_consent_bulk(
     payload: ConsentSettings, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    for source, enabled in payload.model_dump().items():
+    """Partial update. `exclude_unset` matters: ConsentSettings declares a
+    default for every source including the never-collectible ones, so a
+    full dump would submit `webcam=False` on every call and be rejected by
+    the collectibility guard - which is correct behaviour for an explicit
+    request and wrong for an untouched default."""
+    for source, enabled in payload.model_dump(exclude_unset=True).items():
         consent_service.set_consent(db, user.id, source, enabled)
     return consent_service.get_catalog_with_state(db, user.id)
 

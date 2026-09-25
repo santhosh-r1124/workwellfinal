@@ -1,12 +1,40 @@
+"""The employee-facing assistant.
+
+Chat explains an analysis; it does not produce one. That split is what
+takes the agent pipeline off the request path: previously every message
+recomputed 90 days of baselines and made three model calls before the
+assistant could answer, which put the product's slowest operation in front
+of its most latency-sensitive surface - and meant the chat could disagree
+with the dashboard the employee was looking at, because each recomputed
+independently.
+
+Now the stored run is the single source of truth for both. A message adds
+exactly one thing the stored run does not have: whatever the employee just
+said about their own situation. So the chat re-runs only the two steps
+that consume it - context, then the recommendation grounded in retrieved
+guidance - and never writes a new analysis or a new nudge.
+"""
+
 import logging
 
 from sqlalchemy.orm import Session
 
-from agents import safety_agent
-from agents.orchestrator import run_orchestration
+from agents import context_agent, safety_agent, wellness_agent
+from agents.providers import get_provider
 from apps.backend.models import ChatMessage, ChatSession
+from apps.backend.services import analysis_service
 
 logger = logging.getLogger("workwell.chat")
+
+QUEUED_REPLY = (
+    "I'm still putting your analysis together - it needs a couple of weeks of your own "
+    "history before it can tell your normal apart from a change. Check back shortly."
+)
+
+UNAVAILABLE_REPLY = (
+    "I can't reach the analysis pipeline right now. Your dashboard still shows "
+    "what changed in your work pattern."
+)
 
 
 def get_or_create_session(db: Session, employee_id: str, session_id: str | None) -> ChatSession:
@@ -21,6 +49,37 @@ def get_or_create_session(db: Session, employee_id: str, session_id: str | None)
     return session
 
 
+def _answer_from_analysis(db: Session, employee_id: str, message: str) -> tuple[str, list[dict], bool]:
+    analysis = analysis_service.current_analysis(db, employee_id)
+
+    if analysis is None:
+        return QUEUED_REPLY, [], False
+
+    # The inline path returns the orchestrator's own early exits verbatim.
+    if analysis.get("state") in ("NO_CONSENT", "INSUFFICIENT_DATA"):
+        return analysis["message"], [], False
+
+    pattern = analysis.get("pattern") or {}
+    stored_wellness = analysis.get("wellness") or {}
+
+    if not pattern:
+        # A stored run whose pattern row has aged out of retention. The
+        # recommendation it produced is still the honest answer.
+        return (
+            stored_wellness.get("recommendation") or QUEUED_REPLY,
+            stored_wellness.get("sources", []),
+            False,
+        )
+
+    context = context_agent.analyze_context(pattern, message)
+    wellness = wellness_agent.build_recommendation(
+        db, pattern, context, analysis.get("intervention") or {}, get_provider()
+    )
+
+    degraded = not (context.get("narrated", True) and wellness.get("narrated", True))
+    return wellness["recommendation"], wellness.get("sources", []), degraded
+
+
 def handle_message(db: Session, employee_id: str, session_id: str | None, message: str) -> dict:
     session = get_or_create_session(db, employee_id, session_id)
 
@@ -33,34 +92,16 @@ def handle_message(db: Session, employee_id: str, session_id: str | None, messag
     # checked before anything else touches this message.
     safety_result = safety_agent.check_message(db, employee_id, user_msg.id, message)
 
-    degraded = False
-
     if safety_result["flagged"]:
         # The safety path is deterministic and never depends on the model,
         # so it answers even during a provider outage.
-        reply = safety_result["response"]
-        sources: list[dict] = []
+        reply, sources, degraded = safety_result["response"], [], False
     else:
         try:
-            result = run_orchestration(db, employee_id, employee_note=message)
+            reply, sources, degraded = _answer_from_analysis(db, employee_id, message)
         except Exception:
-            logger.exception("orchestration failed for chat message")
-            result = None
-
-        if result is None:
-            reply = (
-                "I can't reach the analysis pipeline right now. Your dashboard still shows "
-                "what changed in your work pattern."
-            )
-            sources = []
-            degraded = True
-        elif result.get("state") in ("NO_CONSENT", "INSUFFICIENT_DATA"):
-            reply = result["message"]
-            sources = []
-        else:
-            reply = result["wellness"]["recommendation"]
-            sources = result["wellness"].get("sources", [])
-            degraded = result.get("narrative_degraded", False)
+            logger.exception("could not answer from the stored analysis")
+            reply, sources, degraded = UNAVAILABLE_REPLY, [], True
 
     assistant_msg = ChatMessage(session_id=session.id, role="assistant", content=reply)
     db.add(assistant_msg)

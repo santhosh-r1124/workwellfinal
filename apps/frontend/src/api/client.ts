@@ -6,7 +6,9 @@ import type {
   DataSourceInfo,
   Intervention,
   OrgSettings,
+  OrgUser,
   PatternRecord,
+  Preferences,
   SelfReportStatus,
   TeamAnalytics,
 } from "../types";
@@ -84,6 +86,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ rating, comment: comment ?? null }),
     }),
+  getPreferences: () => request<Preferences>("/me/preferences"),
+  setNotifications: (enabled: boolean) =>
+    request<Preferences>("/me/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({ notifications_enabled: enabled }),
+    }),
   getTodaySelfReport: () => request<SelfReportStatus>("/me/self-report"),
   submitSelfReport: (stress: number, energy: number, recovery: number, note?: string) =>
     request<{ date: string }>("/me/self-report", {
@@ -103,9 +111,21 @@ export const api = {
       "/admin/data-sources"
     ),
   getAuditLogs: () => request<{ logs: AuditLogEntry[] }>("/admin/audit-logs"),
+  getOrgUsers: () => request<{ users: OrgUser[] }>("/admin/users"),
+  setUserActive: (userId: string, isActive: boolean) =>
+    request<{ id: string; email: string; is_active: boolean }>(`/admin/users/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: isActive }),
+    }),
   getIntegrations: () =>
     request<{
-      connectors: { key: string; label: string; auth_kind: string; implemented: boolean }[];
+      connectors: {
+        key: string;
+        label: string;
+        auth_kind: string;
+        implemented: boolean;
+        allowed: boolean;
+      }[];
     }>("/admin/integrations"),
   applyRetention: () =>
     request<{ cutoff: string; daily_features_deleted: number; telemetry_events_deleted: number }>(

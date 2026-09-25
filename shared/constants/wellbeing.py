@@ -13,6 +13,11 @@ DASHBOARD_DIMENSIONS = ["workload", "recovery", "focus", "schedule", "communicat
 # consecutive days before it contributes to a PERSISTENT_PATTERN.
 PERSISTENCE_MIN_DAYS = 5
 
+# A sustained pattern produces the same finding every day it persists, so
+# a nudge of a given type is not repeated inside this window. See
+# agent_repo.intervention_within_cooldown for why.
+INTERVENTION_COOLDOWN_DAYS = 3
+
 # Minimum days of history required before a baseline is considered usable.
 BASELINE_MIN_DAYS = 7
 BASELINE_TARGET_DAYS = 14

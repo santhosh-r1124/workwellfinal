@@ -22,6 +22,11 @@ def get_current_user(
     user = user_repo.get_user(db, payload["sub"])
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if not user.is_active:
+        # Checked per request rather than only at login, so deactivating
+        # someone takes effect immediately instead of whenever their
+        # existing token happens to expire.
+        raise HTTPException(status_code=401, detail="Account is deactivated")
     return user
 
 

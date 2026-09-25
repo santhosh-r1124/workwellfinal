@@ -56,13 +56,18 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: ${CORS_ORIGINS:?required}
+      APP_BASE_URL: ${APP_BASE_URL:?required}
+      NOTIFICATION_CHANNEL: ${NOTIFICATION_CHANNEL:-log}
+      INLINE_ANALYSIS_FALLBACK: "false"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      # Readiness, not liveness: this gate decides whether the container is
+      # put into service, so it must include the schema check.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')\""]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -71,6 +76,49 @@ services:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
+  # Runs the daily sweep and everything else off the request path. One
+  # replica is enough at this job volume; the queue's scheduler lock and
+  # dedupe keys make more than one safe if you need it.
+  worker:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    command: ["python", "-m", "apps.worker"]
+    restart: always
+    environment:
+      APP_ENV: production
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?required}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?required}
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:?required}
+      POSTGRES_USER: ${POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: ${CORS_ORIGINS:?required}
+      APP_BASE_URL: ${APP_BASE_URL:?required}
+      NOTIFICATION_CHANNEL: ${NOTIFICATION_CHANNEL:-log}
+      # With a worker deployed, the API must never fall back to running an
+      # analysis inline on a request.
+      INLINE_ANALYSIS_FALLBACK: "false"
+    depends_on:
+      # The backend applies migrations on start and only reports ready once
+      # the schema matches, so waiting on it keeps the worker from querying
+      # columns that do not exist yet.
+      backend:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    # SIGTERM stops new reservations and lets in-flight jobs finish; a job
+    # that outlives this has its lease expire and is picked up again.
+    stop_grace_period: 60s
     deploy:
       resources:
         limits:

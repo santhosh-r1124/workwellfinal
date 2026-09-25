@@ -3,13 +3,24 @@ from datetime import date, datetime, time, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from apps.backend.services import telemetry_service
+from apps.backend.models import User
+from apps.backend.services import org_policy, telemetry_service
 from integrations import available_connectors, get_connector
 from integrations.base import ConnectorNotConfigured
 
 
-def list_connectors() -> list[dict]:
-    return available_connectors()
+def list_connectors(db: Session | None = None, org_id: str | None = None) -> list[dict]:
+    """`allowed` reflects the org's allowlist. Connectors outside it stay
+    visible rather than disappearing: an admin needs to see what exists in
+    order to decide to permit it, and a silently missing connector reads
+    as a bug."""
+    connectors = available_connectors()
+    if db is None or org_id is None:
+        return [{**c, "allowed": True} for c in connectors]
+    return [
+        {**c, "allowed": org_policy.integration_allowed(db, org_id, c["key"])}
+        for c in connectors
+    ]
 
 
 def sync_connector(
@@ -33,6 +44,15 @@ def sync_connector(
     connector = get_connector(connector_key)
     if connector is None:
         raise HTTPException(status_code=404, detail=f"Unknown connector '{connector_key}'")
+
+    employee = db.get(User, employee_id)
+    if employee is not None and not org_policy.integration_allowed(
+        db, employee.org_id, connector_key
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Connector '{connector_key}' is not on this organization's allowlist.",
+        )
 
     source = connector.metadata.consent_source
     consents = telemetry_service.consent_map(db, employee_id)

@@ -60,6 +60,38 @@ def data_source_catalog() -> list[dict]:
     ]
 
 
+def list_org_users(db: Session, org_id: str) -> list[dict]:
+    from apps.backend.models import Role
+
+    rows = db.execute(
+        select(User, Role.name).join(Role, Role.id == User.role_id).where(User.org_id == org_id)
+    ).all()
+    return [
+        {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": role_name,
+            "team": user.team,
+            "is_active": user.is_active,
+        }
+        for user, role_name in sorted(rows, key=lambda r: r[0].email)
+    ]
+
+
+def set_user_active(db: Session, org_id: str, user_id: str, is_active: bool) -> dict:
+    """Deactivation is how an employee who has left stops being analysed.
+    It is scoped to the admin's own org - an admin elsewhere must not be
+    able to disable this org's accounts by guessing an id."""
+    user = db.get(User, user_id)
+    if user is None or user.org_id != org_id:
+        return {}
+    user.is_active = is_active
+    db.commit()
+    db.refresh(user)
+    return {"id": user.id, "email": user.email, "is_active": user.is_active}
+
+
 def recent_audit_logs(db: Session, org_id: str, limit: int = 100) -> list[dict]:
     org_user_ids = select(User.id).where(User.org_id == org_id)
     rows = db.scalars(

@@ -24,25 +24,36 @@ class _Registry:
         self._lock = threading.Lock()
         self._counters: dict[tuple[str, tuple], float] = defaultdict(float)
         self._histograms: dict[tuple[str, tuple], list[float]] = defaultdict(list)
+        self._gauges: dict[tuple[str, tuple], float] = {}
 
     def increment(self, name: str, labels: dict | None = None, value: float = 1.0) -> None:
         key = (name, tuple(sorted((labels or {}).items())))
         with self._lock:
             self._counters[key] += value
 
+    def set_gauge(self, name: str, value: float, labels: dict | None = None) -> None:
+        key = (name, tuple(sorted((labels or {}).items())))
+        with self._lock:
+            self._gauges[key] = value
+
     def observe(self, name: str, seconds: float, labels: dict | None = None) -> None:
         key = (name, tuple(sorted((labels or {}).items())))
         with self._lock:
             self._histograms[key].append(seconds)
 
-    def snapshot(self) -> tuple[dict, dict]:
+    def snapshot(self) -> tuple[dict, dict, dict]:
         with self._lock:
-            return dict(self._counters), {k: list(v) for k, v in self._histograms.items()}
+            return (
+                dict(self._counters),
+                {k: list(v) for k, v in self._histograms.items()},
+                dict(self._gauges),
+            )
 
     def reset(self) -> None:
         with self._lock:
             self._counters.clear()
             self._histograms.clear()
+            self._gauges.clear()
 
 
 REGISTRY = _Registry()
@@ -56,15 +67,30 @@ def _format_labels(labels: tuple) -> str:
 
 
 def render_prometheus() -> str:
-    counters, histograms = REGISTRY.snapshot()
+    counters, histograms, gauges = REGISTRY.snapshot()
     lines: list[str] = []
 
+    # Exactly one TYPE line per metric family. Prometheus rejects a scrape
+    # that declares the same metric name twice, so emitting it per label
+    # set - one series at a time - silently breaks the whole endpoint the
+    # moment a metric gains a second label value.
+    declared: set[str] = set()
+
+    def declare(name: str, kind: str) -> None:
+        if name not in declared:
+            lines.append(f"# TYPE {name} {kind}")
+            declared.add(name)
+
     for (name, labels), value in sorted(counters.items()):
-        lines.append(f"# TYPE {name} counter")
+        declare(name, "counter")
+        lines.append(f"{name}{_format_labels(labels)} {value}")
+
+    for (name, labels), value in sorted(gauges.items()):
+        declare(name, "gauge")
         lines.append(f"{name}{_format_labels(labels)} {value}")
 
     for (name, labels), observations in sorted(histograms.items()):
-        lines.append(f"# TYPE {name} histogram")
+        declare(name, "histogram")
         label_pairs = list(labels)
         cumulative = 0
         for bucket in LATENCY_BUCKETS_SECONDS:
@@ -120,5 +146,22 @@ def record_intervention(intervention_type: str) -> None:
     REGISTRY.increment("workwell_interventions_total", {"type": intervention_type})
 
 
+def record_intervention_suppressed(intervention_type: str) -> None:
+    REGISTRY.increment("workwell_interventions_suppressed_total", {"type": intervention_type})
+
+
 def record_safety_event(severity: str) -> None:
     REGISTRY.increment("workwell_safety_events_total", {"severity": severity})
+
+
+def record_job(job_type: str, outcome: str, duration_seconds: float) -> None:
+    """outcome is one of: succeeded, failed, retried, dead_lettered."""
+    REGISTRY.increment("workwell_jobs_total", {"type": job_type, "outcome": outcome})
+    REGISTRY.observe("workwell_job_duration_seconds", duration_seconds, {"type": job_type})
+
+
+def record_queue_depth(pending: int, in_flight: int) -> None:
+    """A rising pending depth is the signal that the worker cannot keep up;
+    a rising in-flight count with a flat pending one means jobs are hanging."""
+    REGISTRY.set_gauge("workwell_job_queue_pending", pending)
+    REGISTRY.set_gauge("workwell_job_queue_in_flight", in_flight)

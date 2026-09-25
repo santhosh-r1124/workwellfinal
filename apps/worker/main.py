@@ -41,6 +41,33 @@ MAINTENANCE_INTERVAL_SECONDS = 30
 RESERVE_TIMEOUT_SECONDS = 5
 
 
+def _renew_lease_while_running(queue: JobQueue, job, stop: threading.Event) -> threading.Thread:
+    """Hold the reservation for as long as the job is actually running.
+
+    Without this, a job that outlives its lease is reaped and run again
+    while the first copy is still going. Delivery is at-least-once and the
+    job bodies are idempotent, so that is not a correctness problem - but
+    it spends a second set of model calls, which on a rate-limited free
+    tier is the one resource there is not enough of. Renewing at a third
+    of the lease leaves room for two missed renewals before it lapses.
+    """
+    interval = max(5.0, queue._lease_seconds / 3)
+
+    def renew() -> None:
+        while not stop.wait(interval):
+            try:
+                queue.extend_lease(job)
+            except Exception:
+                # Redis is unreachable; the lease will lapse and the job
+                # will be retried, which is the designed fallback.
+                logger.warning("could not renew lease for %s", job.type)
+                return
+
+    thread = threading.Thread(target=renew, name=f"lease-{job.id[:8]}", daemon=True)
+    thread.start()
+    return thread
+
+
 def consume_once(queue: JobQueue, timeout: int = RESERVE_TIMEOUT_SECONDS) -> bool:
     """Reserve and run a single job. Returns False when nothing was waiting.
 
@@ -52,16 +79,21 @@ def consume_once(queue: JobQueue, timeout: int = RESERVE_TIMEOUT_SECONDS) -> boo
         return False
 
     started = time.perf_counter()
+    stop_renewing = threading.Event()
+    _renew_lease_while_running(queue, job, stop_renewing)
+
     try:
         with session_scope() as db:
             result = dispatch(db, job.type, job.args)
     except Exception as exc:
         elapsed = time.perf_counter() - started
+        stop_renewing.set()
         retrying = queue.fail(job, f"{type(exc).__name__}: {exc}")
         record_job(job.type, "retried" if retrying else "dead_lettered", elapsed)
         logger.exception("job failed: %s (retrying=%s)", job.type, retrying)
         return True
 
+    stop_renewing.set()
     queue.ack(job)
     record_job(job.type, "succeeded", time.perf_counter() - started)
     logger.info("job done: %s %s", job.type, result.get("outcome", ""))

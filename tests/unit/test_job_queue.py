@@ -162,3 +162,47 @@ def test_purge_leaves_no_residue(queue):
     assert queue.in_flight() == 0
     assert queue._redis.llen(PROCESSING_KEY) == 0
     assert not list(queue._redis.scan_iter(DEDUPE_PREFIX + "*"))
+
+
+def test_a_long_job_keeps_its_reservation(queue):
+    """A job that outlives its lease is reaped and run again while the
+    first copy is still going. The bodies are idempotent so that is not a
+    correctness problem, but it spends a second set of model calls - the
+    one resource a free tier does not have spare."""
+    import threading
+
+    from apps.worker.main import _renew_lease_while_running
+
+    queue.enqueue("analyze_employee", employee_id="emp_1")
+    job = queue.reserve(timeout_seconds=1)
+
+    # A lease short enough to lapse during the "job".
+    queue._lease_seconds = 0.6
+    stop = threading.Event()
+    _renew_lease_while_running(queue, job, stop)
+
+    try:
+        # Longer than the lease: without renewal the reaper would take it.
+        threading.Event().wait(1.4)
+        assert queue.reap_expired() == 0, "the lease lapsed while the job was still running"
+        assert queue.in_flight() == 1
+    finally:
+        stop.set()
+
+
+def test_the_renewal_stops_when_the_job_does(queue):
+    """Otherwise a finished job's thread keeps a dead reservation alive."""
+    import threading
+
+    from apps.worker.main import _renew_lease_while_running
+
+    queue.enqueue("analyze_employee", employee_id="emp_1")
+    job = queue.reserve(timeout_seconds=1)
+    queue._lease_seconds = 0.6
+
+    stop = threading.Event()
+    thread = _renew_lease_while_running(queue, job, stop)
+    stop.set()
+    thread.join(timeout=3)
+
+    assert not thread.is_alive()

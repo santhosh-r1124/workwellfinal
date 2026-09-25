@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from agents.orchestrator import run_orchestration
 from apps.backend.models import User
-from apps.backend.services import admin_service, notification_service
+from apps.backend.services import admin_service, connector_service, notification_service
 
 logger = logging.getLogger("workwell.jobs")
 
@@ -74,6 +74,20 @@ def apply_retention(db: Session, org_id: str) -> dict:
         result.get("telemetry_events_deleted"),
     )
     return {"outcome": "retained", **result}
+
+
+@job("sync_connectors")
+def sync_connectors(db: Session, employee_id: str) -> dict:
+    """Pulls whatever this employee has connected. Idempotent: the window
+    is re-ingested each time and telemetry upserts per day, so a repeat
+    run overwrites rather than accumulates."""
+    results = connector_service.sync_all_for_employee(db, employee_id)
+    return {
+        "outcome": "synced",
+        "connectors": len(results),
+        "ingested_days": sum(r.get("ingested_days", 0) for r in results),
+        "statuses": sorted({r.get("status", "unknown") for r in results}),
+    }
 
 
 def dispatch(db: Session, job_type: str, args: dict) -> dict:

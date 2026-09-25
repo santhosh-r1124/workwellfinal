@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     # How stale a stored analysis may be before a chat message triggers a
     # background refresh.
     analysis_max_age_hours: int = 24
+    # Re-analyse when new telemetry arrives rather than only on the daily
+    # sweep. Deduplicated to one run per employee per hour, so a chatty
+    # agent costs the same as a quiet one. Turn off to hold the model
+    # spend to exactly one analysis per employee per day.
+    reanalyse_on_ingest: bool = True
     # Run analysis inline when no worker is deployed. Correct for a
     # single-process dev or pilot install; turn off in production, where a
     # worker container runs the same jobs off the request path.

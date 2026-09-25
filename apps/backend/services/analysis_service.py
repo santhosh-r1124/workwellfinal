@@ -18,6 +18,7 @@ silently fall back to blocking every request.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -90,6 +91,52 @@ def request_refresh(db: Session, employee_id: str) -> str | None:
     except Exception as exc:
         logger.warning("could not enqueue analysis refresh: %s", type(exc).__name__)
         return None
+
+
+def live_status(db: Session, employee_id: str) -> dict:
+    """A cheap token the client can poll.
+
+    The alternative is polling the dashboard's real payload every few
+    seconds - baselines, history, patterns, interventions - which is four
+    queries and a render for the common case of nothing having changed.
+    This is three cheap lookups and a hash, so the client can refetch only
+    when something actually moved.
+    """
+    from sqlalchemy import func, select
+
+    from apps.backend.models import DailyFeature, Intervention, TelemetryEvent
+
+    latest_run = agent_repo.latest_agent_run(db, employee_id)
+    latest_data = db.scalar(
+        select(func.max(DailyFeature.created_at)).where(DailyFeature.employee_id == employee_id)
+    )
+    latest_event = db.scalar(
+        select(func.max(TelemetryEvent.timestamp)).where(TelemetryEvent.employee_id == employee_id)
+    )
+    open_nudges = db.scalar(
+        select(func.count(Intervention.id)).where(
+            Intervention.employee_id == employee_id, Intervention.status == "proposed"
+        )
+    )
+
+    token = hashlib.sha256(
+        "|".join(
+            str(part)
+            for part in (
+                latest_run.id if latest_run else "",
+                latest_run.created_at if latest_run else "",
+                latest_data,
+                open_nudges,
+            )
+        ).encode()
+    ).hexdigest()[:16]
+
+    return {
+        "version": token,
+        "analysed_at": latest_run.created_at.isoformat() if latest_run and latest_run.created_at else None,
+        "last_data_at": latest_event.isoformat() if latest_event else None,
+        "open_interventions": int(open_nudges or 0),
+    }
 
 
 def worker_available() -> bool:

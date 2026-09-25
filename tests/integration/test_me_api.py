@@ -212,3 +212,31 @@ def test_a_suggestion_nobody_answered_a_fortnight_ago_stops_being_shown(
     rows = app_client.get("/me/interventions", headers=auth_headers(app_client, employee.email)).json()
 
     assert rows == []
+
+
+def test_the_live_status_token_changes_only_when_something_changed(app_client, db_session, org):
+    """The client polls this instead of the dashboard's real payload, so a
+    token that churns on its own would defeat the point."""
+    employee = make_user(db_session, org, "employee", "live_emp", "live_emp@example.com")
+    headers = auth_headers(app_client, employee.email)
+
+    first = app_client.get("/me/status", headers=headers).json()
+    second = app_client.get("/me/status", headers=headers).json()
+
+    assert first["version"] == second["version"]
+
+    _make_intervention(db_session, employee.id)
+
+    third = app_client.get("/me/status", headers=headers).json()
+    assert third["version"] != first["version"]
+    assert third["open_interventions"] == 1
+
+
+def test_live_status_is_scoped_to_the_caller(app_client, db_session, org):
+    mine = make_user(db_session, org, "employee", "live_mine", "live_mine@example.com")
+    theirs = make_user(db_session, org, "employee", "live_theirs", "live_theirs@example.com")
+    _make_intervention(db_session, theirs.id)
+
+    status = app_client.get("/me/status", headers=auth_headers(app_client, mine.email)).json()
+
+    assert status["open_interventions"] == 0

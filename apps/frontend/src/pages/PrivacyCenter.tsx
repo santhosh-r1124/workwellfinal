@@ -20,6 +20,7 @@ export default function PrivacyCenter() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<boolean | null>(null);
+  const [timezone, setTimezone] = useState<string | null>(null);
 
   const load = () => {
     api.getConsent().then(setSources);
@@ -29,7 +30,10 @@ export default function PrivacyCenter() {
     load();
     api
       .getPreferences()
-      .then((p) => setNotifications(p.notifications_enabled))
+      .then((p) => {
+        setNotifications(p.notifications_enabled);
+        setTimezone(p.timezone);
+      })
       .catch(() => setNotifications(null));
   }, []);
 
@@ -140,10 +144,16 @@ export default function PrivacyCenter() {
               label="Email notifications"
             />
           </div>
-          <p className="text-[12px] text-text-faint mb-8">
+          <p className="text-[12px] text-text-faint mb-2">
             This is a delivery preference, not consent. Consent is the list above, and withdrawing
             it stops collection entirely.
           </p>
+          {timezone && (
+            <p className="text-[12px] text-text-faint mb-8">
+              Your day is measured in <span className="font-mono">{timezone}</span>, taken from your
+              browser — everything here compares whole days, so that is where yours ends.
+            </p>
+          )}
         </>
       )}
 

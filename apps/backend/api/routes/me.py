@@ -9,7 +9,7 @@ about.
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from apps.backend.api.deps import get_current_user, get_db
@@ -127,10 +127,26 @@ def live_status(user: User = Depends(get_current_user), db: Session = Depends(ge
     return analysis_service.live_status(db, user.id)
 
 
+# A connector config holds URLs and client ids, not documents. Bounding it
+# keeps an authenticated caller from using encrypted storage as a dumping
+# ground.
+MAX_CONFIG_FIELDS = 12
+MAX_CONFIG_VALUE_CHARS = 2000
+
+
 class ConnectorConfigIn(BaseModel):
     config: dict[str, str] = Field(
-        description="The connector's required_config fields. Stored encrypted, never returned."
+        description="The connector's required_config fields. Stored encrypted, never returned.",
+        max_length=MAX_CONFIG_FIELDS,
     )
+
+    @field_validator("config")
+    @classmethod
+    def _bound_values(cls, value: dict[str, str]) -> dict[str, str]:
+        for field, item in value.items():
+            if len(item) > MAX_CONFIG_VALUE_CHARS:
+                raise ValueError(f"'{field}' is longer than {MAX_CONFIG_VALUE_CHARS} characters")
+        return value
 
 
 @router.get("/connectors")

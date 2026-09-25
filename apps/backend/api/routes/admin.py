@@ -122,7 +122,12 @@ def integrations(user: User = Depends(_admin_only), db: Session = Depends(get_db
 
 @router.get("/knowledge-base")
 def knowledge_base(_user: User = Depends(_admin_only), db: Session = Depends(get_db)):
-    return {"categories": admin_service.knowledge_base_summary(db)}
+    return {
+        "categories": admin_service.knowledge_base_summary(db),
+        # Surfaced because a provider switch without re-ingesting breaks
+        # retrieval silently rather than loudly.
+        "embeddings": admin_service.knowledge_base_health(db),
+    }
 
 
 @router.post("/retention/apply")

@@ -124,6 +124,35 @@ def knowledge_base_summary(db: Session) -> list[dict]:
     return [{"category": category, "documents": count} for category, count in rows]
 
 
+def knowledge_base_health(db: Session) -> dict:
+    """Whether the stored knowledge base is in the vector space the running
+    provider actually queries.
+
+    A mismatch does not error anywhere - retrieval simply stops finding
+    anything, or would return nonsense if it were not filtered - so it has
+    to be visible somewhere an admin looks."""
+    from agents.providers import embedding_identity
+    from apps.backend.repositories import knowledge_repo
+
+    current = embedding_identity()
+    present = knowledge_repo.embedding_models_present(db)
+    usable = present.get(current, 0)
+    stale = {model: count for model, count in present.items() if model != current}
+
+    return {
+        "current_model": current,
+        "usable_chunks": usable,
+        "stale_chunks": sum(stale.values()),
+        "stale_models": sorted(stale),
+        "ready": usable > 0,
+        "hint": (
+            None
+            if usable > 0
+            else "Run scripts/ingest_knowledge.py - nothing is embedded with the current model."
+        ),
+    }
+
+
 def apply_retention(db: Session, org_id: str) -> dict:
     """Deletes telemetry and daily features older than the org's retention
     window. Phase 12 makes retention a real, enforceable setting rather than

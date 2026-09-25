@@ -127,6 +127,12 @@ Set `AI_PROVIDER=local` instead of a real Gemini key to run everything (includin
 generator and RAG ingestion) fully offline against a deterministic mock provider - useful for
 development and is what the automated test suite uses.
 
+**Moving to live data and real keys:** [docs/going-live.md](docs/going-live.md) lists every
+credential, where to get it, and the two traps on the way - chiefly that anything embedded before
+you set a real key was embedded by the offline stand-in, and mixing vector spaces returns
+confidently wrong guidance rather than an error. `python scripts/ingest_knowledge.py` after any
+provider change.
+
 ## Architecture
 
 ```

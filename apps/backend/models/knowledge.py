@@ -28,3 +28,10 @@ class KnowledgeChunk(Base, TimestampMixin):
     content: Mapped[str] = mapped_column(String, nullable=False)
     meta: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+
+    # Which model produced `embedding`. Vectors from two different models
+    # are not comparable, and comparing them does not fail - it returns a
+    # confidently wrong top_k. See agents/providers/factory.embedding_identity.
+    embedding_model: Mapped[str] = mapped_column(
+        String, nullable=False, server_default="unknown", index=True
+    )

@@ -39,4 +39,14 @@ class User(Base, TimestampMixin):
         Boolean, nullable=False, default=True, server_default="true"
     )
 
+    # Which day is "today" for this person. The product's whole unit of
+    # analysis is a day, so a boundary drawn in the wrong place is not
+    # cosmetic: someone thirteen hours from UTC would have their day cut
+    # mid-afternoon, see a dashboard reading from the day before last, and
+    # be analysed on a half-finished day. IANA name, set from the browser
+    # at login; invalid or unknown values fall back to UTC.
+    timezone: Mapped[str] = mapped_column(
+        String, nullable=False, default="UTC", server_default="UTC"
+    )
+
     organization: Mapped["Organization"] = relationship(back_populates="users")

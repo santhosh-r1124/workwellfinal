@@ -45,3 +45,7 @@ build/
 
 # TypeScript incremental build cache - a build artifact, not source.
 *.tsbuildinfo
+
+# Database dumps - never in the repository.
+backups/
+*.sql.gz

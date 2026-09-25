@@ -121,8 +121,21 @@ be traced to its log line.
 
 ## Backups
 
-Postgres holds everything that matters. `pg_dump` nightly and verify a restore
-periodically. Note that the retention policy (Admin → retention) deletes
+`scripts/backup.sh` does both halves, and the second one is the point:
+
+```bash
+make backup           # -> backups/workwell-<stamp>.sql.gz
+make backup-verify    # restore into a scratch database, count rows, drop it
+```
+
+`dump` checks for the marker `pg_dump` writes last, because a dump that
+failed halfway still leaves a readable gzip. `verify` restores and reports
+row counts and the schema revision - an empty restore loads perfectly well,
+so "it restored" is not the test. `restore` refuses to overwrite the live
+database: restore under a new name and switch over.
+
+Redis needs no backup. Queued jobs and rate-limit counters rebuild
+themselves; the daily sweep re-enqueues, so a lost queue costs a delay. Note that the retention policy (Admin → retention) deletes
 telemetry past its window; if a backup is restored from before a retention
 run, that data returns, which may conflict with what employees were told about
 retention. Prune backups on the same schedule as the retention window.
@@ -295,3 +308,32 @@ Consequences for an existing deployment:
 - Revoking a device (lost laptop, a machine handed back) takes effect on the
   next request. Tokens are stored as SHA-256 digests, so a database dump does
   not yield working credentials.
+
+## Timezones
+
+Each employee has one (`users.timezone`, IANA name), reported by their
+browser at login and settable through `/me/preferences`. It decides where
+their day ends, which is not cosmetic: the whole analysis is built on whole
+days, and someone thirteen hours from UTC would otherwise have their day cut
+mid-afternoon, see a dashboard reading from the day before last, and be
+analysed on a half-finished day.
+
+`DAILY_ANALYSIS_HOUR_UTC` stays in UTC — it is when the sweep runs, not what
+it considers finished. At 02:00 UTC an employee in Los Angeles is still in
+their previous evening, and the sweep correctly analyses through the day
+before that.
+
+## Desktop agent rollout
+
+Run the self-test on each OS before anyone relies on the numbers:
+
+```bash
+make agent-selftest
+```
+
+The collectors are best-effort per platform and return `None` where they
+cannot work — right for a background agent, wrong for a rollout. An agent
+whose window tracking silently returns nothing still uploads and still looks
+healthy, while reporting zero context switches all day. Zero is
+indistinguishable from "nobody switched windows", so the baseline learns it
+and the product concludes nothing is ever wrong.

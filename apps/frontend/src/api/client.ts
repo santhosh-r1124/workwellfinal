@@ -114,6 +114,11 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ notifications_enabled: enabled }),
     }),
+  setTimezone: (timezone: string) =>
+    request<Preferences>("/me/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({ timezone }),
+    }),
   getTodaySelfReport: () => request<SelfReportStatus>("/me/self-report"),
   submitSelfReport: (stress: number, energy: number, recovery: number, note?: string) =>
     request<{ date: string }>("/me/self-report", {

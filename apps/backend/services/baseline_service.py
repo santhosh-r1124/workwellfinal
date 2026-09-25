@@ -1,9 +1,9 @@
 from datetime import date as date_cls
-from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from apps.backend.core.observability import record_pattern_state
+from apps.backend.core.timezones import today_in
 from apps.backend.repositories import baseline_repo, telemetry_repo
 from ml.anomaly.pattern_builder import build_pattern_object
 from ml.baseline.baseline_engine import compute_baseline
@@ -34,7 +34,7 @@ def has_behavioral_data(day: dict) -> bool:
     return (day.get("work_duration") or 0) > 0
 
 
-def is_complete_day(day: date_cls, today: date_cls | None = None) -> bool:
+def is_complete_day(day: date_cls, today: date_cls) -> bool:
     """A day the clock is still inside is not one you can compare.
 
     The agent reports every few minutes, so a row for today holds however
@@ -43,27 +43,36 @@ def is_complete_day(day: date_cls, today: date_cls | None = None) -> bool:
     collapse: "meetings -100%, focus -100%" at 09:00, every day, for
     everyone. The signal is not a drop - the day simply is not over.
 
-    UTC, matching the daily sweep. An employee far from UTC has their day
-    boundary drawn a few hours early or late; a per-employee timezone is
-    the proper fix and is noted in docs/deployment.md.
+    `today` is the employee's own today. Drawing it in UTC put someone in
+    Auckland a full day behind and someone in Los Angeles a day ahead of
+    their own evening.
     """
-    today = today or datetime.now(timezone.utc).date()
     return day < today
 
 
-def usable_days(rows: list) -> list:
-    """Days that are both measured and finished."""
+def employee_timezone(db: Session, employee_id: str) -> str:
+    from apps.backend.models import User
+
+    user = db.get(User, employee_id)
+    return user.timezone if user else "UTC"
+
+
+def usable_days(rows: list, timezone_name: str) -> list:
+    """Days that are both measured and finished, in the employee's own
+    reckoning of when a day ends."""
+    today = today_in(timezone_name)
     return [
         d
         for d in rows
-        if has_behavioral_data(telemetry_repo.daily_feature_to_dict(d)) and is_complete_day(d.date)
+        if has_behavioral_data(telemetry_repo.daily_feature_to_dict(d))
+        and is_complete_day(d.date, today)
     ]
 
 
 def recompute_baselines(db: Session, employee_id: str) -> dict:
     all_history = telemetry_repo.daily_features_history(db, employee_id, limit_days=90)
 
-    history = usable_days(all_history)
+    history = usable_days(all_history, employee_timezone(db, employee_id))
     history_dicts = [telemetry_repo.daily_feature_to_dict(d) for d in history]
     dates = [d.date for d in history]
 
@@ -113,7 +122,10 @@ def get_baseline_response(db: Session, employee_id: str) -> dict:
     # "Current" is the most recent day that actually has behavioral data
     # and is over - see has_behavioral_data and is_complete_day.
     recent = telemetry_repo.daily_features_history(db, employee_id, limit_days=14)
-    measured = [telemetry_repo.daily_feature_to_dict(d) for d in usable_days(recent)]
+    measured = [
+        telemetry_repo.daily_feature_to_dict(d)
+        for d in usable_days(recent, employee_timezone(db, employee_id))
+    ]
     current_dict = measured[-1] if measured else {}
 
     metrics = {}

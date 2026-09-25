@@ -1,4 +1,4 @@
-.PHONY: up down build logs backend-shell db-shell migrate seed demo-data test test-backend test-frontend lint worker worker-logs sweep preflight smoke-provider
+.PHONY: up down build logs backend-shell db-shell migrate seed demo-data test test-backend test-frontend lint worker worker-logs sweep preflight smoke-provider ingest-knowledge agent-selftest backup backup-verify
 
 up:
 	docker compose up --build
@@ -57,3 +57,21 @@ preflight:
 # path automated tests cannot cover.
 smoke-provider:
 	.venv/bin/python scripts/smoke_provider.py
+
+# Re-embed the knowledge base. Required after any change of provider or
+# embedding model - vectors from two models are not comparable, and the
+# mismatch returns wrong guidance rather than an error.
+ingest-knowledge:
+	.venv/bin/python scripts/ingest_knowledge.py
+
+# Run on each OS before a rollout: the collectors fail silently per
+# platform, and a signal that is always zero gets learned as normal.
+agent-selftest:
+	.venv/bin/python apps/desktop-agent/selftest.py
+
+backup:
+	./scripts/backup.sh dump
+
+# The half that matters. A backup nobody has restored is a file.
+backup-verify:
+	./scripts/backup.sh verify $$(ls -t backups/*.sql.gz | head -1)

@@ -3,10 +3,12 @@ import type {
   BaselineResponse,
   ChatMessage,
   DailyHistoryPoint,
+  ConnectorInfo,
   DataSourceInfo,
   Device,
   DeviceCreated,
   Intervention,
+  LiveStatus,
   OrgSettings,
   OrgUser,
   PatternRecord,
@@ -88,6 +90,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ rating, comment: comment ?? null }),
     }),
+  liveStatus: () => request<LiveStatus>("/me/status"),
+  listConnectors: () => request<{ connectors: ConnectorInfo[] }>("/me/connectors"),
+  configureConnector: (key: string, config: Record<string, string>) =>
+    request<{ connector: string; first_sync: { status: string; ingested_days: number } }>(
+      `/me/connectors/${key}`,
+      { method: "PUT", body: JSON.stringify({ config }) }
+    ),
+  syncConnector: (key: string) =>
+    request<{ status: string; ingested_days: number }>(`/me/connectors/${key}/sync`, {
+      method: "POST",
+    }),
+  disconnectConnector: (key: string) =>
+    request<void>(`/me/connectors/${key}`, { method: "DELETE" }),
+
   listDevices: () => request<Device[]>("/me/devices"),
   createDevice: (label: string) =>
     request<DeviceCreated>("/me/devices", { method: "POST", body: JSON.stringify({ label }) }),

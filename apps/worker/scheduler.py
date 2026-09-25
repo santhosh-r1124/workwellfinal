@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from apps.backend.core.config import get_settings
 from apps.backend.models import Organization, Role, User
+from apps.backend.services import connector_service
 from apps.worker.queue import JobQueue, SchedulerLock
 from shared.enums.roles import RoleName
 
@@ -78,6 +79,22 @@ def enqueue_daily_retention(queue: JobQueue, db: Session, day: date) -> int:
     return enqueued
 
 
+def enqueue_connector_sync(queue: JobQueue, db: Session, day: date) -> int:
+    """Only employees who actually connected something. Pulling the window
+    before the analysis runs means the day's meeting load is present when
+    the pattern is computed rather than a day late."""
+    enqueued = 0
+    for employee_id in connector_service.employees_with_connectors(db):
+        job_id = queue.enqueue(
+            "sync_connectors",
+            dedupe_key=f"connectors:{employee_id}:{day.isoformat()}",
+            employee_id=employee_id,
+        )
+        if job_id:
+            enqueued += 1
+    return enqueued
+
+
 def due(now: datetime, hour_utc: int) -> bool:
     return now.astimezone(timezone.utc).hour == hour_utc
 
@@ -96,7 +113,15 @@ def tick(queue: JobQueue, lock: SchedulerLock, db: Session, now: datetime | None
     if not lock.claim(f"daily:{day.isoformat()}", LOCK_TTL_SECONDS):
         return {"ran": False, "reason": "another_replica_has_it"}
 
+    # Connectors first: the analysis should see today's calendar, not
+    # yesterday's. The queue is FIFO per push order, so these land ahead.
+    syncs = enqueue_connector_sync(queue, db, day)
     analyses = enqueue_daily_analysis(queue, db, day)
     retentions = enqueue_daily_retention(queue, db, day)
-    logger.info("daily sweep enqueued %s analyses and %s retention jobs", analyses, retentions)
-    return {"ran": True, "analyses": analyses, "retention": retentions}
+    logger.info(
+        "daily sweep enqueued %s connector syncs, %s analyses and %s retention jobs",
+        syncs,
+        analyses,
+        retentions,
+    )
+    return {"ran": True, "syncs": syncs, "analyses": analyses, "retention": retentions}

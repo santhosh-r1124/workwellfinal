@@ -15,7 +15,12 @@ from sqlalchemy.orm import Session
 from apps.backend.api.deps import get_current_user, get_db
 from apps.backend.models import SelfReport, User
 from apps.backend.repositories import agent_repo, telemetry_repo
-from apps.backend.services import device_service, telemetry_service
+from apps.backend.services import (
+    analysis_service,
+    connector_service,
+    device_service,
+    telemetry_service,
+)
 from shared.enums.intervention import InterventionStatus
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -112,6 +117,78 @@ def revoke_device(
 ):
     if not device_service.revoke(db, device_id, user.id):
         raise HTTPException(status_code=404, detail="Device not found")
+
+
+@router.get("/status")
+def live_status(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Poll this, not the dashboard. `version` changes only when something
+    the employee would notice has changed, so the client can hold its
+    render until it actually needs to refetch."""
+    return analysis_service.live_status(db, user.id)
+
+
+class ConnectorConfigIn(BaseModel):
+    config: dict[str, str] = Field(
+        description="The connector's required_config fields. Stored encrypted, never returned."
+    )
+
+
+@router.get("/connectors")
+def list_connectors(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Every connector the build knows about, with this person's state for
+    each. Never the stored credential - only a redacted hint, so they can
+    tell which URL is saved without it being readable from the API."""
+    return {"connectors": connector_service.describe(db, user.id)}
+
+
+@router.put("/connectors/{connector_key}")
+def configure_connector(
+    connector_key: str,
+    payload: ConnectorConfigIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from integrations import get_connector
+
+    connector = get_connector(connector_key)
+    if connector is None:
+        raise HTTPException(status_code=404, detail=f"Unknown connector '{connector_key}'")
+    if not connector.metadata.implemented:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{connector.metadata.label} is declared but not implemented yet.",
+        )
+
+    missing = [f for f in connector.metadata.required_config if not payload.config.get(f)]
+    if missing:
+        raise HTTPException(
+            status_code=400, detail=f"Missing required configuration: {', '.join(missing)}"
+        )
+
+    connector_service.save_config(db, user.id, connector_key, payload.config)
+
+    # Sync immediately: a connection that shows "connected" but has pulled
+    # nothing is indistinguishable from one that is quietly broken.
+    result = connector_service.sync_one(db, user.id, connector_key)
+    return {"connector": connector_key, "first_sync": result}
+
+
+@router.post("/connectors/{connector_key}/sync")
+def sync_connector_now(
+    connector_key: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    return connector_service.sync_one(db, user.id, connector_key)
+
+
+@router.delete("/connectors/{connector_key}", status_code=204)
+def disconnect_connector(
+    connector_key: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Removes the stored credential outright rather than flagging it
+    disabled: an employee disconnecting a calendar means the URL should
+    stop existing here."""
+    if not connector_service.remove_config(db, user.id, connector_key):
+        raise HTTPException(status_code=404, detail="Nothing connected for that source")
 
 
 class PreferencesOut(BaseModel):

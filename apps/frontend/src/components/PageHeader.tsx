@@ -2,10 +2,13 @@ export default function PageHeader({
   title,
   subtitle,
   status,
+  note,
 }: {
   title: string;
   subtitle?: string;
   status?: React.ReactNode;
+  /** Quiet, secondary, updates on its own - e.g. when data last arrived. */
+  note?: string;
 }) {
   return (
     <header className="mb-6">
@@ -14,6 +17,7 @@ export default function PageHeader({
         {status}
       </div>
       {subtitle && <p className="text-[13.5px] text-text-muted mt-1">{subtitle}</p>}
+      {note && <p className="text-[11.5px] text-text-faint mt-1 font-mono">{note}</p>}
     </header>
   );
 }

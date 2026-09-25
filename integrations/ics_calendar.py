@@ -10,6 +10,7 @@ per day and nothing else.
 from datetime import date, datetime, timedelta
 
 from integrations.base import ConnectorMetadata, require_config
+from integrations.url_guard import fetch_text
 
 METADATA = ConnectorMetadata(
     key="ics_calendar",
@@ -82,10 +83,9 @@ class IcsCalendarConnector:
         source = config["ics_path_or_url"]
 
         if source.startswith("http://") or source.startswith("https://"):
-            import urllib.request
-
-            with urllib.request.urlopen(source, timeout=15) as response:
-                ics_text = response.read().decode("utf-8", errors="replace")
+            # The employee chose this URL, so the server must not simply
+            # go where it is told - see integrations/url_guard.py.
+            ics_text = fetch_text(source)
         else:
             with open(source, encoding="utf-8", errors="replace") as fh:
                 ics_text = fh.read()

@@ -2,6 +2,7 @@ from apps.backend.models.agent_run import AgentRun
 from apps.backend.models.audit_log import AuditLog
 from apps.backend.models.baseline import EmployeeBaseline
 from apps.backend.models.chat import ChatMessage, ChatSession
+from apps.backend.models.connector import ConnectorConfig
 from apps.backend.models.consent import Consent, ConsentEvent
 from apps.backend.models.daily_feature import DailyFeature
 from apps.backend.models.data_source import DataSource
@@ -40,4 +41,5 @@ __all__ = [
     "SafetyEvent",
     "OrgSettings",
     "DeviceToken",
+    "ConnectorConfig",
 ]

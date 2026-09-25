@@ -139,12 +139,33 @@ URL, which Google Calendar, Outlook and Apple Calendar all expose:
 - Outlook / Microsoft 365 → Settings → Calendar → Shared calendars →
   *Publish a calendar* → ICS link
 
-Config key: `ics_path_or_url`. Only start and end times are read —
-summaries, attendees, locations and descriptions are parsed past and
-discarded, so what leaves the module is meeting minutes per day.
+The employee pastes it themselves in **Privacy Centre → Connected
+sources**. Not an admin screen: the URL is a bearer credential for their
+calendar, so it is theirs to add and theirs to remove. It is stored as
+Fernet ciphertext keyed off `APP_SECRET_KEY`, shown back only as a
+redacted fragment, and deleted outright on disconnect.
+
+Only start and end times are read — summaries, attendees, locations and
+descriptions are parsed past and discarded, so what leaves the module is
+meeting minutes per day. A test asserts the event title never reaches the
+database.
 
 Gated by the employee's `calendar_metadata` consent, which is **off by
-default**: they have to turn it on in the Privacy Centre first.
+default**. Connecting a calendar while it is off collects nothing and says
+so on the card, rather than appearing to work.
+
+Syncs run in the daily sweep ahead of the analysis, so the day's meeting
+load is present when the pattern is computed rather than a day late.
+There is a *Sync now* button for impatience.
+
+**One thing to set at the network layer.** The server fetches a URL the
+employee chose, which is the shape of SSRF. `integrations/url_guard.py`
+requires https, resolves every address and refuses private, loopback,
+link-local and reserved ranges, re-validates each redirect hop, and caps
+the download. That closes the obvious paths, but nothing that resolves DNS
+in the application can fully close the gap between the check and the
+connect — an egress allowlist on the container is the real control if you
+are running somewhere with instance metadata worth stealing.
 
 ## 4. Everything else needs an OAuth app, not a key
 
@@ -180,16 +201,21 @@ contradiction; one that fires without the rule is a false-positive
 generator pointed at people's wellbeing. The daily sweep is the honest
 cadence for the decision, and it runs at `DAILY_ANALYSIS_HOUR_UTC`.
 
-**What is genuinely missing, and what I would build:**
+**Live now, without touching the persistence rule:**
 
-- The dashboard loads once and never refreshes. Live updates as telemetry
-  lands are straightforward and worth having.
-- Re-analysis currently happens daily or on a chat message. Triggering it
-  when new data arrives (debounced) would mean the dashboard is never more
-  than minutes stale, with the persistence rule untouched.
-- `sync_connector` exists but no HTTP route exposes it and nothing stores
-  an employee's connector config, so even the working ICS connector cannot
-  be driven from the app yet.
+- The dashboard polls `/me/status`, a cheap token that changes only when
+  something the employee would notice has changed, and refetches only
+  then. It also refreshes when the tab regains focus and pauses while
+  hidden. The header shows when the last reading arrived, so "nothing is
+  happening" is distinguishable from "the agent stopped reporting".
+- `REANALYSE_ON_INGEST=true` re-runs the analysis when telemetry lands,
+  deduplicated to one run per employee per hour — so an agent reporting
+  every five minutes costs the same as one reporting hourly. Set it false
+  to hold spend to one analysis per employee per day.
+
+The detection rule is untouched in both: five consecutive anomalous days
+still decides, because that is what separates a change in how someone
+works from a busy Tuesday.
 
 ## Order of operations
 

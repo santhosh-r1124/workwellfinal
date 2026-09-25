@@ -62,6 +62,31 @@ export interface Preferences {
   notifications_enabled: boolean;
 }
 
+export interface ConnectorInfo {
+  key: string;
+  label: string;
+  auth_kind: string;
+  implemented: boolean;
+  required_config: string[];
+  notes: string;
+  consent_source: string;
+  connected: boolean;
+  /** A redacted fragment so you can tell which URL is stored. Never the URL. */
+  config_hint: string | null;
+  last_sync_at: string | null;
+  last_sync_status: string | null;
+  last_sync_detail: string | null;
+  consent_enabled: boolean;
+}
+
+export interface LiveStatus {
+  /** Changes only when something the employee would notice has changed. */
+  version: string;
+  analysed_at: string | null;
+  last_data_at: string | null;
+  open_interventions: number;
+}
+
 export interface Device {
   id: string;
   label: string;

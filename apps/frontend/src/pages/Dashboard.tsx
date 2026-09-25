@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../api/client";
 import CheckIn from "../components/CheckIn";
@@ -6,6 +6,7 @@ import Explainability from "../components/Explainability";
 import InterventionCard from "../components/InterventionCard";
 import MetricBar from "../components/MetricBar";
 import PageHeader from "../components/PageHeader";
+import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import { useAuth } from "../context/AuthContext";
 import type { BaselineResponse, DailyHistoryPoint, Intervention, PatternRecord } from "../types";
 
@@ -44,6 +45,16 @@ const STATE_LABEL: Record<string, string> = {
   SAFETY_EVENT: "Safety event",
 };
 
+/** "4m ago" rather than a timestamp: the question this answers is "is my
+ *  agent still reporting", and a clock time makes you work that out. */
+function relativeTime(iso: string): string {
+  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 90) return "just now";
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
+  if (seconds < 86_400) return `${Math.round(seconds / 3600)}h ago`;
+  return `${Math.round(seconds / 86_400)}d ago`;
+}
+
 /** "Yesterday" and "Friday" read as a person would say them; anything
  *  older gets a date, because "6 days ago" makes you do arithmetic. */
 function asOfLabel(iso: string): string {
@@ -67,21 +78,34 @@ export default function Dashboard() {
     api.listInterventions().then(setInterventions).catch(() => undefined);
   };
 
+  const loadAll = useCallback(
+    (showSpinner: boolean) => {
+      if (!user) return;
+      if (showSpinner) setLoading(true);
+      Promise.allSettled([
+        api.getBaseline(user.id).then(setBaseline),
+        api.getPatterns(user.id).then((res) => setPatterns(res.patterns)),
+        api.getHistory(30).then((res) => setHistory(res.days)),
+        api.listInterventions().then(setInterventions),
+      ])
+        .then((results) => {
+          const failed = results.find((r) => r.status === "rejected");
+          if (failed && failed.status === "rejected") setError(String(failed.reason));
+        })
+        .finally(() => {
+          if (showSpinner) setLoading(false);
+        });
+    },
+    [user]
+  );
+
   useEffect(() => {
-    if (!user) return;
-    setLoading(true);
-    Promise.allSettled([
-      api.getBaseline(user.id).then(setBaseline),
-      api.getPatterns(user.id).then((res) => setPatterns(res.patterns)),
-      api.getHistory(30).then((res) => setHistory(res.days)),
-      api.listInterventions().then(setInterventions),
-    ])
-      .then((results) => {
-        const failed = results.find((r) => r.status === "rejected");
-        if (failed && failed.status === "rejected") setError(String(failed.reason));
-      })
-      .finally(() => setLoading(false));
-  }, [user]);
+    loadAll(true);
+  }, [loadAll]);
+
+  // A refresh triggered by new data must not blank the page the employee
+  // is reading, so it reloads without the spinner.
+  const live = useLiveRefresh(() => loadAll(false), Boolean(user));
 
   const latest = patterns[patterns.length - 1];
   const open = interventions.filter((i) => i.type !== "no_action");
@@ -103,6 +127,7 @@ export default function Dashboard() {
             ? `${asOfLabel(baseline.as_of)} — compared to your own history, not to anyone else's.`
             : "Compared to your own history, not to anyone else's."
         }
+        note={live?.last_data_at ? `Last reading ${relativeTime(live.last_data_at)}` : undefined}
         status={
           latest && (
             <span

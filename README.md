@@ -282,6 +282,11 @@ Some pragmatic scope choices worth knowing about:
 - Deactivating someone stops their daily analysis and invalidates tokens already issued -
   checked per request, not only at login. Profiling an ex-employee is outside the consent they
   gave.
+- A connected calendar's subscribe URL is a bearer credential, so it is stored as ciphertext,
+  returned only as a redacted fragment, and deleted outright on disconnect. Only start and end
+  times are read; a test asserts the event title never reaches the database. And because the
+  employee chooses the URL the server fetches, `integrations/url_guard.py` refuses private and
+  loopback addresses rather than letting the connector be pointed at instance metadata.
 
 ## Testing
 
@@ -319,6 +324,8 @@ POST /chat
 GET  /me/history                         GET/PATCH /me/preferences
 GET  /me/interventions                   POST /me/interventions/{id}/respond
 GET/POST /me/devices                     DELETE /me/devices/{id}
+GET  /me/status                          GET  /me/connectors
+PUT/DELETE /me/connectors/{key}          POST /me/connectors/{key}/sync
 GET/POST /me/self-report
 
 # manager or admin - aggregates only, never individuals

@@ -42,3 +42,6 @@ dump.rdb
 dist/
 build/
 *.egg-info
+
+# TypeScript incremental build cache - a build artifact, not source.
+*.tsbuildinfo

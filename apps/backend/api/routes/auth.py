@@ -27,6 +27,11 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = user_repo.get_user_by_email(db, payload.email)
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user.is_active:
+        # Same generic wording as a bad password: whether an account exists
+        # and is merely deactivated is not something an unauthenticated
+        # caller should be able to probe.
+        raise HTTPException(status_code=401, detail="Invalid credentials")
     role = db.get(Role, user.role_id)
     token = create_access_token(subject=user.id, extra_claims={"role": role.name if role else None})
     return LoginResponse(access_token=token, user_id=user.id, role=role.name if role else "")

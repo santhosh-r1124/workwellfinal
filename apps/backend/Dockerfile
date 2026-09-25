@@ -22,6 +22,14 @@ COPY shared shared
 COPY database database
 COPY scripts scripts
 COPY apps/backend apps/backend
+# The worker runs from this same image with a different command. Leaving it
+# out would build an image whose `python -m apps.worker` exits immediately -
+# and nothing in a single-container test would notice.
+COPY apps/worker apps/worker
+
+# The containers run with a read-only root filesystem, so compile once here
+# rather than having every import fail to write its cache at runtime.
+RUN python -m compileall -q /app
 
 # Run as a non-root user (Phase 20): a container escape should not land on
 # root, and nothing here needs write access to the image.

@@ -39,6 +39,13 @@ def recompute_baselines(db: Session, employee_id: str) -> dict:
     history_dicts = [telemetry_repo.daily_feature_to_dict(d) for d in history]
     dates = [d.date for d in history]
 
+    if not history_dicts:
+        # No measured days yet. Writing a baseline here would store nine
+        # rows of zeros that mean "we have no idea" but read as "this
+        # person does no work" - and now that the daily sweep enqueues
+        # every employee, it would do that for every new hire, every day.
+        return {}
+
     for metric in TRACKED_METRICS:
         values = [h.get(metric) for h in history_dicts]
         stats = compute_baseline(values, dates)
@@ -58,20 +65,18 @@ def recompute_baselines(db: Session, employee_id: str) -> dict:
             },
         )
 
-    pattern = None
-    if history_dicts:
-        pattern = build_pattern_object(employee_id, str(history_dicts[-1]["date"]), history_dicts)
-        record_pattern_state(pattern["state"])
-        baseline_repo.save_pattern_state(
-            db,
-            employee_id,
-            history[-1].date,
-            pattern["state"],
-            pattern["confidence"],
-            pattern["duration_days"],
-            pattern["signals"],
-        )
-    return pattern or {}
+    pattern = build_pattern_object(employee_id, str(history_dicts[-1]["date"]), history_dicts)
+    record_pattern_state(pattern["state"])
+    baseline_repo.save_pattern_state(
+        db,
+        employee_id,
+        history[-1].date,
+        pattern["state"],
+        pattern["confidence"],
+        pattern["duration_days"],
+        pattern["signals"],
+    )
+    return pattern
 
 
 def get_baseline_response(db: Session, employee_id: str) -> dict:

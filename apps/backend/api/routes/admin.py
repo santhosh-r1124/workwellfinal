@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -61,18 +61,63 @@ def data_sources(_user: User = Depends(_admin_only)):
     return {"data_sources": admin_service.data_source_catalog()}
 
 
+class UserOut(BaseModel):
+    id: str
+    email: str
+    full_name: str
+    role: str
+    team: str | None
+    is_active: bool
+
+
+class UserActiveUpdate(BaseModel):
+    is_active: bool
+
+
+@router.get("/users")
+def list_users(user: User = Depends(_admin_only), db: Session = Depends(get_db)):
+    return {"users": admin_service.list_org_users(db, user.org_id)}
+
+
+@router.patch("/users/{user_id}")
+def set_user_active(
+    user_id: str,
+    payload: UserActiveUpdate,
+    user: User = Depends(_admin_only),
+    db: Session = Depends(get_db),
+):
+    if user_id == user.id and not payload.is_active:
+        # Locking the last admin out of their own org is not a recoverable
+        # state through the product; it needs a database.
+        raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+
+    result = admin_service.set_user_active(db, user.org_id, user_id, payload.is_active)
+    if not result:
+        raise HTTPException(status_code=404, detail="User not found in your organization")
+
+    audit_service.record(
+        db,
+        actor_id=user.id,
+        subject_user_id=user_id,
+        action="admin.user_activated" if payload.is_active else "admin.user_deactivated",
+        resource=f"user:{user_id}",
+        meta={"is_active": payload.is_active},
+    )
+    return result
+
+
 @router.get("/audit-logs")
 def audit_logs(user: User = Depends(_admin_only), db: Session = Depends(get_db), limit: int = 100):
     return {"logs": admin_service.recent_audit_logs(db, user.org_id, limit=min(limit, 500))}
 
 
 @router.get("/integrations")
-def integrations(_user: User = Depends(_admin_only)):
+def integrations(user: User = Depends(_admin_only), db: Session = Depends(get_db)):
     """Connectors the build knows about. `implemented: false` means the
     connector is declared with its required OAuth config but has no client
     yet - surfaced explicitly so a vendor integration never looks configured
-    when it isn't."""
-    return {"connectors": integration_service.list_connectors()}
+    when it isn't. `allowed: false` means this org's allowlist excludes it."""
+    return {"connectors": integration_service.list_connectors(db, user.org_id)}
 
 
 @router.get("/knowledge-base")

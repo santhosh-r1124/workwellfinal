@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -35,6 +37,42 @@ def create_intervention(
     db.commit()
     db.refresh(row)
     return row
+
+
+def intervention_within_cooldown(
+    db: Session, employee_id: str, type_: str, cooldown_days: int
+) -> Intervention | None:
+    """The scheduler runs daily, but a sustained pattern is by definition
+    the same finding on consecutive days. Without this, an employee whose
+    pattern persists for three weeks gets twenty-one identical nudges -
+    which is how a wellbeing product turns into something people mute.
+
+    A nudge is suppressed while an earlier one of the same type is either
+    inside the cooldown window or still unanswered, whichever is longer:
+    silence is not consent to ask again.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=cooldown_days)
+    stmt = (
+        select(Intervention)
+        .where(
+            Intervention.employee_id == employee_id,
+            Intervention.type == type_,
+            (Intervention.created_at >= cutoff) | (Intervention.status == "proposed"),
+        )
+        .order_by(Intervention.created_at.desc())
+        .limit(1)
+    )
+    return db.scalars(stmt).first()
+
+
+def latest_agent_run(db: Session, employee_id: str) -> AgentRun | None:
+    stmt = (
+        select(AgentRun)
+        .where(AgentRun.employee_id == employee_id)
+        .order_by(AgentRun.created_at.desc())
+        .limit(1)
+    )
+    return db.scalars(stmt).first()
 
 
 def recent_interventions(db: Session, employee_id: str, limit: int = 20) -> list[Intervention]:

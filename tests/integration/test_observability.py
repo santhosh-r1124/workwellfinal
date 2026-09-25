@@ -55,3 +55,31 @@ def test_security_headers_present_on_responses(app_client):
     assert res.headers["X-Content-Type-Options"] == "nosniff"
     assert res.headers["X-Frame-Options"] == "DENY"
     assert "Strict-Transport-Security" in res.headers
+
+
+def test_a_metric_with_several_label_values_declares_its_type_once(app_client):
+    """Prometheus rejects a scrape that declares the same metric name
+    twice, so emitting TYPE per series - rather than per family - breaks
+    the whole endpoint the moment a metric gains a second label value."""
+    from apps.backend.core.observability import REGISTRY, render_prometheus
+
+    REGISTRY.reset()
+    REGISTRY.increment("workwell_interventions_total", {"type": "focus_block"})
+    REGISTRY.increment("workwell_interventions_total", {"type": "recovery_break"})
+    REGISTRY.observe("workwell_job_duration_seconds", 0.2, {"type": "analyze_employee"})
+    REGISTRY.observe("workwell_job_duration_seconds", 0.4, {"type": "apply_retention"})
+    REGISTRY.set_gauge("workwell_job_queue_pending", 3)
+
+    lines = render_prometheus().splitlines()
+    type_lines = [line for line in lines if line.startswith("# TYPE")]
+
+    assert len(type_lines) == len(set(type_lines))
+    names = [line.split()[2] for line in type_lines]
+    assert len(names) == len(set(names)), f"duplicate TYPE declarations: {names}"
+
+
+def test_queue_depth_is_exposed_on_the_scrape_target(app_client):
+    """The worker exports its own metrics, but the case that matters most
+    is the worker being down - and therefore exporting nothing."""
+    body = app_client.get("/metrics").text
+    assert "workwell_job_queue_pending" in body

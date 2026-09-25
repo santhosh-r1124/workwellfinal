@@ -27,6 +27,11 @@ anomaly/persistence detection -> a fixed agent orchestration workflow (context, 
 intervention, wellness RAG) -> an employee dashboard, pattern timeline, chat assistant, and an
 independent safety pipeline.
 
+The pipeline runs **on a schedule, not on demand**. A background worker
+(`apps/worker/`) analyses every consenting employee once a day and notifies them
+when there is something waiting. That distinction is the product: an
+early-warning system that only warns the people who think to ask is not one.
+
 ## Quick start
 
 ```bash
@@ -40,6 +45,10 @@ docker compose up --build
 - Frontend: http://localhost:3000
 - Backend: http://localhost:8000
 - API docs: http://localhost:8000/docs
+
+Five containers come up: `postgres`, `redis`, `backend`, `worker` and
+`frontend`. The worker is the one that makes this run itself; without it
+nothing is analysed until someone opens the assistant and asks.
 
 The backend refuses to start without `GEMINI_API_KEY` set (Phase 0.4) - this is enforced in
 `apps/backend/main.py`'s lifespan hook, not just documented.
@@ -97,7 +106,21 @@ python database/seeds/seed_demo.py
 python scripts/generate_demo_data.py
 uvicorn apps.backend.main:app --reload
 
+python -m apps.worker        # in a second terminal - the daily sweep
 cd apps/frontend && npm install && npm run dev
+```
+
+Without a worker running, the API falls back to computing an analysis inline on
+the first request that needs one (`INLINE_ANALYSIS_FALLBACK`, on by default for
+exactly this case). It detects that from the worker's heartbeat rather than
+assuming, so a production deployment whose worker has died does not silently
+start blocking requests instead.
+
+To run the daily sweep immediately rather than waiting for its scheduled hour:
+
+```bash
+python scripts/run_sweep.py            # enqueue for a running worker
+python scripts/run_sweep.py --inline   # or just run them here
 ```
 
 Set `AI_PROVIDER=local` instead of a real Gemini key to run everything (including the demo data
@@ -140,6 +163,7 @@ only, never over telemetry, and is checked on every chat message before anything
 
 ```
 apps/backend/        FastAPI app: api/ routes, services/, repositories/, models/ (SQLAlchemy), core/
+apps/worker/          Redis-backed job queue, daily analysis sweep, retention sweep
 apps/frontend/        React + TypeScript + Vite + Tailwind
 apps/desktop-agent/    Local collector (psutil/pynput) -> privacy-preserving features -> POST /telemetry/events
 agents/               Orchestrator + individual agents + the Gemini/OpenAI/Local provider abstraction
@@ -147,7 +171,9 @@ ml/                   features/, baseline/, anomaly/, risk/ - the deterministic 
 rag/                  ingestion/, retrieval/, knowledge/ (seed wellness knowledge base)
 safety/               Independent crisis-language classifier, policy, escalation
 database/             Alembic migrations + demo seed script
-scripts/              generate_demo_data.py - five synthetic employee archetypes
+scripts/              demo data, evaluation, and the operational checks:
+                      preflight.py (deploy config), check_migrations.py (model drift),
+                      smoke_provider.py (real model provider), run_sweep.py
 shared/               Pydantic schemas / enums / constants shared across backend, agents, ml, rag
 tests/                unit/, integration/, agents/ (scenario tests)
 ```
@@ -162,8 +188,12 @@ the evaluation harness (17/18), observability (19), and security hardening (20).
 
 **Built but not executed end to end:** the production deployment config (Phase 21) -
 `docker-compose.prod.yml`, the multi-stage frontend image and the nginx TLS proxy were authored
-in an environment with no Docker daemon. The Python imports, migrations, tests and frontend
-production build are all verified; the container orchestration around them is not. See
+in an environment with no Docker daemon. The Python imports, migrations, tests, the worker
+running its own jobs, and the frontend production build are all verified; the container
+orchestration around them is not. `make preflight` now checks statically what a build would
+otherwise discover expensively - every COPY source, every module a container is told to run, and
+every package that code transitively imports. It was written after the backend image shipped for
+weeks without `COPY safety`, which would have died on first import. See
 [docs/deployment.md](docs/deployment.md).
 
 **Partially built by necessity (Phase 13):** the integration framework, the connector registry
@@ -206,10 +236,13 @@ Some pragmatic scope choices worth knowing about:
   `GEMINI_EMBEDDING_MODEL`) so they can be updated without a code change as Google's available
   models evolve.
 - Gemini calls have never been made against a live key - the test suite runs on the offline
-  `local` provider - so `GeminiProvider`'s request shape is worth a smoke test with a real key
-  before trusting it.
-- Agent orchestration runs inline in the request path rather than on a worker queue. Fine at
-  demo scale, and called out as the main scaling limitation in `docs/deployment.md`.
+  `local` provider. `make smoke-provider` exists for exactly this: it makes the real calls with
+  the real key and reports which ones worked. Run it before trusting the narration, because
+  graceful degradation means a wrong key no longer *fails* - it just quietly turns every
+  explanation into canned text.
+- The job queue is ~250 lines of explicit Redis commands rather than Celery or RQ. Deliberate
+  at three job types and one-analysis-per-employee-per-day, and documented in
+  `apps/worker/queue.py` with the conditions that should change the decision.
 
 ## Privacy by design
 
@@ -225,6 +258,18 @@ Some pragmatic scope choices worth knowing about:
 - The dashboard never surfaces a "risk score" or clinical label - only Workload/Recovery/
   Focus/Schedule/Communication, plus an explicit "data not used" list (Phase 9.2).
 - `GEMINI_API_KEY` never reaches the frontend; verified in `tests/integration/test_privacy.py`.
+- Notifications say only that a suggestion is waiting, never what it is. Work email is archived,
+  DLP-scanned, synced to unlocked phones and in most jurisdictions readable by the employer, so
+  naming the finding would disclose it to everyone with mailbox access.
+  `tests/unit/test_notifications.py` asserts the absence of every leaking word, so this breaks
+  loudly rather than drifting.
+- Org policy (`disabled_sources`, `interventions_enabled`, `allowed_integrations`) is enforced
+  in `apps/backend/services/org_policy.py`, and can only ever *subtract* collection. No admin
+  setting switches a source on for an employee who declined it, and withdrawing consent is
+  always permitted regardless of org policy.
+- Deactivating someone stops their daily analysis and invalidates tokens already issued -
+  checked per request, not only at login. Profiling an ex-employee is outside the consent they
+  gave.
 
 ## Testing
 
@@ -249,13 +294,19 @@ against `AI_PROVIDER=local` (no network / no real Gemini key required). It cover
 ## Key API surface
 
 ```
-GET  /health                             GET  /metrics (Prometheus)
+GET  /health/live  /health/ready         GET  /metrics (Prometheus)
+GET  /health
 POST /auth/login                         GET  /auth/me
 GET  /consent                            POST /consent            PATCH/DELETE /consent/{source}
 POST /telemetry/events                   POST /telemetry/self-report
 GET  /employees/{id}/baseline            GET  /employees/{id}/patterns
 POST /rag/query
 POST /chat
+
+# the authenticated employee only - no id in any path or body
+GET  /me/history                         GET/PATCH /me/preferences
+GET  /me/interventions                   POST /me/interventions/{id}/respond
+GET/POST /me/self-report
 
 # manager or admin - aggregates only, never individuals
 GET  /analytics/teams                    GET  /analytics/teams/{team}
@@ -264,6 +315,7 @@ GET  /analytics/teams                    GET  /analytics/teams/{team}
 GET/PATCH /admin/settings                GET  /admin/audit-logs
 GET  /admin/data-sources                 GET  /admin/integrations
 GET  /admin/knowledge-base               POST /admin/retention/apply
+GET  /admin/users                        PATCH /admin/users/{id}
 ```
 
 Full interactive docs at `/docs` once the backend is running.

@@ -18,6 +18,10 @@ PERSISTENCE_MIN_DAYS = 5
 # agent_repo.intervention_within_cooldown for why.
 INTERVENTION_COOLDOWN_DAYS = 3
 
+# How long a nudge stays on the employee's dashboard. One nobody answered
+# a fortnight ago is not a suggestion any more, it is clutter.
+INTERVENTION_VISIBLE_DAYS = 14
+
 # Minimum days of history required before a baseline is considered usable.
 BASELINE_MIN_DAYS = 7
 BASELINE_TARGET_DAYS = 14

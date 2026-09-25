@@ -148,3 +148,67 @@ def test_self_report_validates_scale(app_client, db_session, org):
 def test_me_routes_require_auth(app_client):
     assert app_client.get("/me/interventions").status_code == 401
     assert app_client.get("/me/self-report").status_code == 401
+
+
+def test_the_dashboard_shows_one_suggestion_per_type(app_client, db_session, org):
+    """A sustained pattern produces the same finding repeatedly. Without
+    this the dashboard stacks up near-identical cards and the employee has
+    to work out which one is current."""
+    from datetime import datetime, timedelta, timezone
+
+    from apps.backend.models import AgentRun, Intervention
+
+    employee = make_user(db_session, org, "employee", "vis_emp", "vis_emp@example.com")
+    run = AgentRun(employee_id=employee.id, context={}, risk={}, intervention={}, wellness={})
+    db_session.add(run)
+    db_session.commit()
+
+    now = datetime.now(timezone.utc)
+    for days_ago, type_, message in [
+        (0, "recovery_break", "newest recovery"),
+        (4, "recovery_break", "older recovery"),
+        (8, "recovery_break", "oldest recovery"),
+        (1, "focus_block", "focus"),
+    ]:
+        db_session.add(
+            Intervention(
+                employee_id=employee.id,
+                agent_run_id=run.id,
+                type=type_,
+                message=message,
+                created_at=now - timedelta(days=days_ago),
+            )
+        )
+    db_session.commit()
+
+    rows = app_client.get("/me/interventions", headers=auth_headers(app_client, employee.email)).json()
+
+    assert [r["type"] for r in rows] == ["recovery_break", "focus_block"]
+    assert rows[0]["message"] == "newest recovery"
+
+
+def test_a_suggestion_nobody_answered_a_fortnight_ago_stops_being_shown(
+    app_client, db_session, org
+):
+    from datetime import datetime, timedelta, timezone
+
+    from apps.backend.models import AgentRun, Intervention
+
+    employee = make_user(db_session, org, "employee", "stale_emp", "stale_emp@example.com")
+    run = AgentRun(employee_id=employee.id, context={}, risk={}, intervention={}, wellness={})
+    db_session.add(run)
+    db_session.commit()
+    db_session.add(
+        Intervention(
+            employee_id=employee.id,
+            agent_run_id=run.id,
+            type="recovery_break",
+            message="from a month ago",
+            created_at=datetime.now(timezone.utc) - timedelta(days=30),
+        )
+    )
+    db_session.commit()
+
+    rows = app_client.get("/me/interventions", headers=auth_headers(app_client, employee.email)).json()
+
+    assert rows == []

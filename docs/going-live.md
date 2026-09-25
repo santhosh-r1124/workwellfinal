@@ -3,6 +3,60 @@
 What to supply, in the order it matters. Everything here has an env var
 name and somewhere to get it; nothing is left as "configure your provider".
 
+## The free path, in full
+
+Exactly one key is needed, and it has a free tier:
+
+| What | Cost | What it needs |
+|---|---|---|
+| **Gemini** | free tier at ai.google.dev | one API key |
+| **Desktop agent** | free | no key at all — a per-device token the employee generates in the app |
+| **Calendar (ICS)** | free | a private subscribe URL from Google, Outlook or Apple |
+| Microsoft 365 / Slack / Jira / GitHub | app registration is free; needs admin consent | OAuth app in your tenant |
+
+The first three need no developer account, no billing details and no
+admin approval. Together they cover everything the detection model
+actually uses: working hours, breaks, focus, context switching, typing
+dynamics and meeting load. The OAuth four add convenience and a little
+extra context, not new detection ability.
+
+The product runs with **no key at all** — every number on the dashboard
+is computed by `ml/`, independent of any model. The key buys prose.
+
+### Staying inside a free tier
+
+A free tier limits requests per minute, and the daily sweep hands every
+employee to the worker pool at once. Left alone, the provider answers 429,
+the fallback text appears, and the product degrades to canned sentences
+while every health check stays green — the numbers keep being right and
+the writing quietly stops happening.
+
+So calls are paced and retried:
+
+```bash
+LLM_REQUESTS_PER_MINUTE=10   # the whole allowance, shared via Redis
+LLM_MAX_RETRIES=3            # 429s and 5xx only, with backoff and jitter
+LLM_MAX_WAIT_SECONDS=120     # how long a call may queue for a slot
+```
+
+The budget is shared between the API process and the worker rather than
+each assuming it owns the quota. A throttled sweep still finishes — it
+just takes longer — and nothing falls back to canned text on the way.
+Raise `LLM_REQUESTS_PER_MINUTE` to whatever your plan actually allows;
+check the current limits on Google's pricing page rather than trusting a
+number written here, because they change.
+
+A wrong key is not a throttle and is not retried: it fails on the first
+attempt, so a bad credential cannot burn the quota that is already the
+constraint. Watch `workwell_llm_retries_total` and
+`workwell_llm_throttled_total` on `/metrics` — both climbing means the
+limit is set too high for your plan.
+
+Budget, roughly: the daily sweep costs about three calls per employee per
+day (context, recommendation, and one embedding for retrieval), plus two
+per chat message. Fifty employees is on the order of 150 calls a day
+before anyone opens the assistant.
+
 ## 1. The one key that changes what people read — Gemini
 
 ```bash

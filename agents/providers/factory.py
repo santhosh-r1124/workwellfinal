@@ -42,6 +42,25 @@ def embedding_identity() -> str:
 
 
 def _instrumented(provider: AIProvider, name: str) -> AIProvider:
+    """Order matters. Resilience sits inside, so retries and throttle
+    waits happen before the metric is recorded - one logical call is one
+    entry in `workwell_llm_calls_total`, with its real end-to-end latency,
+    and the retries it took are counted separately."""
     from agents.providers.instrumented import InstrumentedProvider
+    from agents.providers.resilient import ResilientProvider
 
-    return InstrumentedProvider(provider, name)
+    settings = get_settings()
+
+    if name == "local":
+        # Nothing to pace: no network, no quota.
+        return InstrumentedProvider(provider, name)
+
+    resilient = ResilientProvider(
+        provider,
+        name,
+        requests_per_minute=settings.llm_requests_per_minute,
+        max_retries=settings.llm_max_retries,
+        base_backoff_seconds=settings.llm_retry_base_seconds,
+        max_wait_seconds=settings.llm_max_wait_seconds,
+    )
+    return InstrumentedProvider(resilient, name)

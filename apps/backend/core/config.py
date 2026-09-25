@@ -21,6 +21,17 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = "text-embedding-004"
     gemini_embedding_dim: int = 768
 
+    # Pacing, sized for a free API tier where the binding constraint is
+    # requests per minute rather than money. The budget is shared across
+    # the API and the worker through Redis, so raise this to match your
+    # plan's actual limit rather than per process.
+    llm_requests_per_minute: int = 10
+    llm_max_retries: int = 3
+    llm_retry_base_seconds: float = 2.0
+    # How long a call may wait for a slot before going anyway. Being
+    # throttled beats silently skipping the work.
+    llm_max_wait_seconds: float = 120.0
+
     # Database
     postgres_host: str = "postgres"
     postgres_port: int = 5432
@@ -42,7 +53,7 @@ class Settings(BaseSettings):
     # Background worker
     worker_concurrency: int = 2
     worker_metrics_port: int = 9100
-    job_lease_seconds: int = 300
+    job_lease_seconds: int = 600
     job_max_attempts: int = 3
     # Hour (UTC) at which the daily sweep enqueues an analysis for every
     # employee. Default is after most timezones' working day.

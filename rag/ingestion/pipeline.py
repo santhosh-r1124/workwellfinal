@@ -2,7 +2,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from agents.providers import get_provider
+from agents.providers import embedding_identity, get_provider
 from apps.backend.repositories import knowledge_repo
 from rag.ingestion.chunker import chunk_text
 from rag.ingestion.parser import parse_file
@@ -29,13 +29,20 @@ def _extract_title_and_source(raw_text: str, fallback: str) -> tuple[str, str | 
     return fallback, source_url
 
 
-def ingest_knowledge_base(db: Session, root: Path | None = None) -> int:
+def ingest_knowledge_base(db: Session, root: Path | None = None, replace: bool = True) -> int:
     """PDF/DOCX/HTML/Markdown -> parse -> chunk -> embed -> pgvector (Phase 7.1).
-    Idempotent-ish for demo purposes: re-running adds duplicate documents, so
-    callers should clear knowledge tables first if re-ingesting."""
+
+    Replaces by default. Re-running used to add a second copy of every
+    document, which made the standard recovery from a provider switch -
+    re-embed everything - leave a broken copy behind alongside the good one.
+    """
     root = root or KNOWLEDGE_ROOT
     provider = get_provider()
+    model = embedding_identity()
     total_chunks = 0
+
+    if replace:
+        knowledge_repo.delete_all_knowledge(db)
 
     for category_dir in sorted(p for p in root.iterdir() if p.is_dir()):
         category = category_dir.name
@@ -60,6 +67,7 @@ def ingest_knowledge_base(db: Session, root: Path | None = None) -> int:
                     content=chunk,
                     meta={"chunk_index": idx, "title": title},
                     embedding=embedding,
+                    embedding_model=model,
                 )
                 total_chunks += 1
 

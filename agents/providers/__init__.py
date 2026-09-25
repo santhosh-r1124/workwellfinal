@@ -1,3 +1,3 @@
-from agents.providers.factory import get_provider
+from agents.providers.factory import embedding_identity, get_provider
 
-__all__ = ["get_provider"]
+__all__ = ["embedding_identity", "get_provider"]

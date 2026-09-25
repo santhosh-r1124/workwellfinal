@@ -2,7 +2,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from agents.providers import get_provider
+from agents.providers import embedding_identity, get_provider
 from apps.backend.models import KnowledgeDocument
 from apps.backend.repositories import knowledge_repo
 
@@ -21,7 +21,19 @@ def retrieve(db: Session, query: str, top_k: int = 4, category: str | None = Non
         logger.warning("retrieval unavailable: embedding provider failed")
         return []
 
-    results = knowledge_repo.similarity_search(db, embedding, top_k=top_k, category=category)
+    model = embedding_identity()
+    results = knowledge_repo.similarity_search(
+        db, embedding, top_k=top_k, category=category, embedding_model=model
+    )
+
+    if not results and knowledge_repo.count_chunks(db) > 0:
+        # There is a knowledge base; none of it was embedded by the model
+        # now asking. Almost always a provider switch without re-ingesting.
+        logger.error(
+            "knowledge base holds no chunks embedded by %s - re-run "
+            "scripts/ingest_knowledge.py after changing provider or embedding model",
+            model,
+        )
 
     output = []
     for chunk, distance in results:

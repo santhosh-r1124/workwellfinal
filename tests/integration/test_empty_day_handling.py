@@ -94,3 +94,76 @@ def test_dashboard_endpoint_reflects_the_fix(app_client, db_session, org):
 
     res = app_client.get(f"/employees/{employee.id}/baseline", headers=headers)
     assert res.json()["metrics"]["work_duration"]["current"] == 8.0
+
+
+def test_a_day_still_in_progress_is_not_compared_against_whole_days(db_session, org):
+    """The agent reports every few minutes, so today's row holds however
+    much has happened so far. Set beside a baseline of whole days, every
+    metric the morning has not produced yet reads as a collapse - at 09:00,
+    every day, for everyone."""
+    from datetime import date, timedelta
+
+    from apps.backend.models import DailyFeature
+    from apps.backend.services import baseline_service
+    from tests.factories import stable_day
+
+    employee = make_user(db_session, org, "employee", "partial_day", "partial@example.com")
+
+    today = date.today()
+    for i in range(20):
+        db_session.add(
+            DailyFeature(
+                employee_id=employee.id,
+                date=today - timedelta(days=20 - i),
+                **stable_day(i),
+            )
+        )
+    # Today so far: an hour of work, nothing else reported yet.
+    db_session.add(
+        DailyFeature(
+            employee_id=employee.id,
+            date=today,
+            work_duration=1.0,
+            after_hours=0.0,
+            break_count=0,
+            average_break_gap=0.0,
+            meeting_hours=0.0,
+            context_switches=0,
+            focus_minutes=0.0,
+            typing_speed=0.0,
+            typing_pause_rate=0.0,
+            derived={},
+        )
+    )
+    db_session.commit()
+
+    pattern = baseline_service.recompute_baselines(db_session, employee.id)
+    assert pattern["state"] == "STABLE", "a day in progress must not read as a pattern change"
+
+    response = baseline_service.get_baseline_response(db_session, employee.id)
+
+    assert response["as_of"] == (today - timedelta(days=1)).isoformat()
+    assert response["metrics"]["meeting_hours"]["current"] == 1.5
+    assert response["metrics"]["focus_minutes"]["current"] == 200.0
+
+
+def test_the_response_says_which_day_it_is_showing(db_session, org):
+    from datetime import date, timedelta
+
+    from apps.backend.models import DailyFeature
+    from apps.backend.services import baseline_service
+    from tests.factories import stable_day
+
+    employee = make_user(db_session, org, "employee", "asof_day", "asof@example.com")
+    for i in range(10):
+        db_session.add(
+            DailyFeature(
+                employee_id=employee.id, date=date.today() - timedelta(days=10 - i), **stable_day(i)
+            )
+        )
+    db_session.commit()
+    baseline_service.recompute_baselines(db_session, employee.id)
+
+    response = baseline_service.get_baseline_response(db_session, employee.id)
+
+    assert response["as_of"] == (date.today() - timedelta(days=1)).isoformat()

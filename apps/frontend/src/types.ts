@@ -14,6 +14,9 @@ export interface MetricBaseline {
 
 export interface BaselineResponse {
   employee_id: string;
+  /** The day these readings come from - the most recent one that is both
+   *  measured and over. Null when there is nothing usable yet. */
+  as_of: string | null;
   metrics: Record<string, MetricBaseline>;
 }
 

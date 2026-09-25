@@ -44,6 +44,16 @@ const STATE_LABEL: Record<string, string> = {
   SAFETY_EVENT: "Safety event",
 };
 
+/** "Yesterday" and "Friday" read as a person would say them; anything
+ *  older gets a date, because "6 days ago" makes you do arithmetic. */
+function asOfLabel(iso: string): string {
+  const day = new Date(`${iso}T00:00:00`);
+  const days = Math.round((Date.now() - day.getTime()) / 86_400_000);
+  if (days <= 1) return "Yesterday";
+  if (days < 7) return day.toLocaleDateString(undefined, { weekday: "long" });
+  return day.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [baseline, setBaseline] = useState<BaselineResponse | null>(null);
@@ -83,8 +93,16 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader
-        title="Today's work pattern"
-        subtitle="Compared to your own history, not to anyone else's."
+        title="Your work pattern"
+        subtitle={
+          // Named rather than implied. These readings are the last day
+          // that is actually over: comparing a morning-so-far against a
+          // baseline of whole days reports a collapse that is really just
+          // a day in progress.
+          baseline?.as_of
+            ? `${asOfLabel(baseline.as_of)} — compared to your own history, not to anyone else's.`
+            : "Compared to your own history, not to anyone else's."
+        }
         status={
           latest && (
             <span

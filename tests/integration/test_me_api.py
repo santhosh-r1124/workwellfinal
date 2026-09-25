@@ -240,3 +240,43 @@ def test_live_status_is_scoped_to_the_caller(app_client, db_session, org):
     status = app_client.get("/me/status", headers=auth_headers(app_client, mine.email)).json()
 
     assert status["open_interventions"] == 0
+
+
+def test_the_browser_can_report_its_timezone(app_client, db_session, org):
+    employee = make_user(db_session, org, "employee", "tz_pref", "tz_pref@example.com")
+    headers = auth_headers(app_client, employee.email)
+
+    assert app_client.get("/me/preferences", headers=headers).json()["timezone"] == "UTC"
+
+    res = app_client.patch(
+        "/me/preferences", json={"timezone": "Pacific/Auckland"}, headers=headers
+    )
+
+    assert res.status_code == 200
+    assert res.json()["timezone"] == "Pacific/Auckland"
+    db_session.refresh(employee)
+    assert employee.timezone == "Pacific/Auckland"
+
+
+def test_a_bogus_timezone_is_refused_rather_than_stored(app_client, db_session, org):
+    employee = make_user(db_session, org, "employee", "tz_bad", "tz_bad@example.com")
+    headers = auth_headers(app_client, employee.email)
+
+    assert app_client.patch(
+        "/me/preferences", json={"timezone": "Mars/Olympus_Mons"}, headers=headers
+    ).status_code == 400
+
+    db_session.refresh(employee)
+    assert employee.timezone == "UTC"
+
+
+def test_updating_one_preference_leaves_the_other_alone(app_client, db_session, org):
+    employee = make_user(db_session, org, "employee", "tz_partial", "tz_partial@example.com")
+    headers = auth_headers(app_client, employee.email)
+
+    app_client.patch("/me/preferences", json={"notifications_enabled": False}, headers=headers)
+    app_client.patch("/me/preferences", json={"timezone": "Europe/Berlin"}, headers=headers)
+
+    prefs = app_client.get("/me/preferences", headers=headers).json()
+    assert prefs["notifications_enabled"] is False
+    assert prefs["timezone"] == "Europe/Berlin"

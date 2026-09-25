@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from apps.backend.api.deps import get_current_user, get_db
+from apps.backend.core import timezones
 from apps.backend.models import SelfReport, User
 from apps.backend.repositories import agent_repo, telemetry_repo
 from apps.backend.services import (
@@ -209,15 +210,19 @@ def disconnect_connector(
 
 class PreferencesOut(BaseModel):
     notifications_enabled: bool
+    timezone: str
 
 
 class PreferencesUpdate(BaseModel):
-    notifications_enabled: bool
+    notifications_enabled: bool | None = None
+    timezone: str | None = Field(default=None, max_length=64)
 
 
 @router.get("/preferences", response_model=PreferencesOut)
 def get_preferences(user: User = Depends(get_current_user)):
-    return PreferencesOut(notifications_enabled=user.notifications_enabled)
+    return PreferencesOut(
+        notifications_enabled=user.notifications_enabled, timezone=user.timezone
+    )
 
 
 @router.patch("/preferences", response_model=PreferencesOut)
@@ -228,10 +233,24 @@ def update_preferences(
 ):
     """Opting out of email is not opting out of support: suggestions still
     appear on the dashboard. Withdrawing *consent* is a different control,
-    in the Privacy Center, and deliberately not merged with this one."""
-    user.notifications_enabled = payload.notifications_enabled
+    in the Privacy Center, and deliberately not merged with this one.
+
+    Timezone decides where this employee's day ends, and the whole
+    analysis is built on days. The browser reports it, so nobody has to
+    pick their own out of six hundred.
+    """
+    if payload.notifications_enabled is not None:
+        user.notifications_enabled = payload.notifications_enabled
+
+    if payload.timezone is not None:
+        if not timezones.is_valid(payload.timezone):
+            raise HTTPException(status_code=400, detail="Unknown timezone")
+        user.timezone = payload.timezone
+
     db.commit()
-    return PreferencesOut(notifications_enabled=user.notifications_enabled)
+    return PreferencesOut(
+        notifications_enabled=user.notifications_enabled, timezone=user.timezone
+    )
 
 
 @router.get("/interventions", response_model=list[InterventionOut])

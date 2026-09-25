@@ -18,6 +18,20 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+/** Where this person's day ends decides which day the dashboard compares
+ *  and which days the analysis treats as finished. The browser already
+ *  knows, so report it rather than making someone find their own zone in
+ *  a list of six hundred. Silent on failure - it is a boundary
+ *  preference, and UTC remains a workable default. */
+function reportTimezone(): void {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (zone) void api.setTimezone(zone).catch(() => undefined);
+  } catch {
+    // Intl is unavailable; UTC it is.
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,7 +44,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     api
       .me()
-      .then(setUser)
+      .then((me) => {
+        setUser(me);
+        reportTimezone();
+      })
       .catch(() => localStorage.removeItem("workwell_token"))
       .finally(() => setLoading(false));
   }, []);
@@ -40,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("workwell_token", res.access_token);
     const me = await api.me();
     setUser(me);
+    reportTimezone();
   };
 
   const logout = () => {

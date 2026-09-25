@@ -167,3 +167,62 @@ def test_the_response_says_which_day_it_is_showing(db_session, org):
     response = baseline_service.get_baseline_response(db_session, employee.id)
 
     assert response["as_of"] == (date.today() - timedelta(days=1)).isoformat()
+
+
+def test_the_day_boundary_follows_the_employee_not_the_server(db_session, org, monkeypatch):
+    """At 02:00 UTC an employee in Los Angeles is still in their previous
+    evening. Drawing the boundary in UTC would treat that evening as
+    finished and compare a half-day against whole ones."""
+    from datetime import date, timedelta
+
+    from apps.backend.models import DailyFeature
+    from apps.backend.services import baseline_service
+    from tests.factories import stable_day
+
+    employee = make_user(db_session, org, "employee", "tz_emp", "tz@example.com")
+    employee.timezone = "America/Los_Angeles"
+    db_session.commit()
+
+    # Pin "now" to 02:00 UTC, when UTC has rolled over and LA has not.
+    utc_today = date.today()
+    la_today = utc_today - timedelta(days=1)
+    monkeypatch.setattr(
+        baseline_service, "today_in", lambda name: la_today if name != "UTC" else utc_today
+    )
+
+    for i in range(12):
+        db_session.add(
+            DailyFeature(
+                employee_id=employee.id, date=utc_today - timedelta(days=12 - i), **stable_day(i)
+            )
+        )
+    db_session.commit()
+    baseline_service.recompute_baselines(db_session, employee.id)
+
+    response = baseline_service.get_baseline_response(db_session, employee.id)
+
+    # Their own most recent finished day, not the server's.
+    assert response["as_of"] == (la_today - timedelta(days=1)).isoformat()
+
+
+def test_an_employee_on_utc_is_unaffected(db_session, org):
+    from datetime import date, timedelta
+
+    from apps.backend.models import DailyFeature
+    from apps.backend.services import baseline_service
+    from tests.factories import stable_day
+
+    employee = make_user(db_session, org, "employee", "tz_utc", "tz_utc@example.com")
+    assert employee.timezone == "UTC"
+
+    for i in range(12):
+        db_session.add(
+            DailyFeature(
+                employee_id=employee.id, date=date.today() - timedelta(days=12 - i), **stable_day(i)
+            )
+        )
+    db_session.commit()
+    baseline_service.recompute_baselines(db_session, employee.id)
+
+    response = baseline_service.get_baseline_response(db_session, employee.id)
+    assert response["as_of"] == (date.today() - timedelta(days=1)).isoformat()

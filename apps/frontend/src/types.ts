@@ -60,6 +60,8 @@ export interface DataSourceInfo {
 
 export interface Preferences {
   notifications_enabled: boolean;
+  /** IANA name. Decides where this employee's day ends. */
+  timezone: string;
 }
 
 export interface ConnectorInfo {

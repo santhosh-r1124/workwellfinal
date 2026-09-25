@@ -5,6 +5,7 @@ from apps.backend.models.chat import ChatMessage, ChatSession
 from apps.backend.models.consent import Consent, ConsentEvent
 from apps.backend.models.daily_feature import DailyFeature
 from apps.backend.models.data_source import DataSource
+from apps.backend.models.device import DeviceToken
 from apps.backend.models.feedback import Feedback
 from apps.backend.models.intervention import Intervention
 from apps.backend.models.knowledge import KnowledgeChunk, KnowledgeDocument
@@ -38,4 +39,5 @@ __all__ = [
     "ChatMessage",
     "SafetyEvent",
     "OrgSettings",
+    "DeviceToken",
 ]

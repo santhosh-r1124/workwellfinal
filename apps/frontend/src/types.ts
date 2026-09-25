@@ -59,6 +59,18 @@ export interface Preferences {
   notifications_enabled: boolean;
 }
 
+export interface Device {
+  id: string;
+  label: string;
+  created_at: string;
+  last_seen_at: string | null;
+}
+
+/** The plaintext token comes back exactly once, on creation. */
+export interface DeviceCreated extends Device {
+  token: string;
+}
+
 export interface OrgUser {
   id: string;
   email: string;

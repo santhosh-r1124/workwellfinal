@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from apps.backend.api.deps import get_current_user, get_db
 from apps.backend.models import SelfReport, User
 from apps.backend.repositories import agent_repo, telemetry_repo
-from apps.backend.services import telemetry_service
+from apps.backend.services import device_service, telemetry_service
 from shared.enums.intervention import InterventionStatus
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -46,6 +46,72 @@ class SelfReportIn(BaseModel):
     recovery: int = Field(ge=1, le=5)
     note: str | None = None
     date: str | None = None
+
+
+class DeviceOut(BaseModel):
+    id: str
+    label: str
+    created_at: str
+    last_seen_at: str | None
+
+
+class DeviceCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=80)
+
+
+class DeviceCreated(DeviceOut):
+    token: str = Field(
+        description="Shown once and never stored. Lose it and provision another."
+    )
+
+
+@router.get("/devices", response_model=list[DeviceOut])
+def list_devices(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Which machines are reporting about you. On the employee's own screen
+    rather than an admin one, because that is a privacy control, not an
+    administrative detail."""
+    return [
+        DeviceOut(
+            id=d.id,
+            label=d.label,
+            created_at=d.created_at.isoformat(),
+            last_seen_at=d.last_seen_at.isoformat() if d.last_seen_at else None,
+        )
+        for d in device_service.list_for_employee(db, user.id)
+    ]
+
+
+@router.post("/devices", response_model=DeviceCreated, status_code=201)
+def create_device(
+    payload: DeviceCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if device_service.active_count(db, user.id) >= device_service.MAX_DEVICES_PER_EMPLOYEE:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"You already have {device_service.MAX_DEVICES_PER_EMPLOYEE} registered devices. "
+                "Revoke one you no longer use."
+            ),
+        )
+
+    device, token = device_service.provision(db, user.id, payload.label)
+    return DeviceCreated(
+        id=device.id,
+        label=device.label,
+        created_at=device.created_at.isoformat(),
+        last_seen_at=None,
+        token=token,
+    )
+
+
+@router.delete("/devices/{device_id}", status_code=204)
+def revoke_device(
+    device_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    if not device_service.revoke(db, device_id, user.id):
+        raise HTTPException(status_code=404, detail="Device not found")
 
 
 class PreferencesOut(BaseModel):

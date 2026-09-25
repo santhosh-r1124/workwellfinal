@@ -230,8 +230,11 @@ Some pragmatic scope choices worth knowing about:
   is best-effort per-OS (win32gui / AppKit / xdotool) and returns `None` gracefully where
   unavailable (e.g. headless); the roadmap itself flags this as a "proper native app" item for
   later.
-- Desktop-agent auth uses a single shared device token (`APP_SECRET_KEY`) rather than
-  per-device provisioning - noted as a Phase 20 hardening item in `apps/backend/api/deps.py`.
+- The desktop agent used to authenticate with one shared secret while naming in the request
+  body which employee it was reporting for, so anyone who could read an agent config - a file on
+  their own laptop - could post fabricated telemetry as a colleague. Each device now has its own
+  token, bound to one account, provisioned by the employee in Privacy Centre → Your devices and
+  revocable there.
 - The Gemini model/embedding model names are read from `.env` (`GEMINI_MODEL`,
   `GEMINI_EMBEDDING_MODEL`) so they can be updated without a code change as Google's available
   models evolve.
@@ -255,6 +258,9 @@ Some pragmatic scope choices worth knowing about:
   attempts to enable them with a 400, not just a UI toggle that's greyed out.
 - A manager can never read an individual employee's baseline/pattern/wellness data through the
   API - only the employee themselves or an org admin (`apps/backend/api/routes/employees.py`).
+- A device token writes telemetry for the account it was issued to and no other, so a machine
+  cannot fabricate a colleague's work pattern. The employee can see which machines are reporting
+  about them and revoke any of them, without going through an administrator.
 - The dashboard never surfaces a "risk score" or clinical label - only Workload/Recovery/
   Focus/Schedule/Communication, plus an explicit "data not used" list (Phase 9.2).
 - `GEMINI_API_KEY` never reaches the frontend; verified in `tests/integration/test_privacy.py`.
@@ -298,7 +304,7 @@ GET  /health/live  /health/ready         GET  /metrics (Prometheus)
 GET  /health
 POST /auth/login                         GET  /auth/me
 GET  /consent                            POST /consent            PATCH/DELETE /consent/{source}
-POST /telemetry/events                   POST /telemetry/self-report
+POST /telemetry/events                   POST /telemetry/self-report   (per-device token)
 GET  /employees/{id}/baseline            GET  /employees/{id}/patterns
 POST /rag/query
 POST /chat
@@ -306,6 +312,7 @@ POST /chat
 # the authenticated employee only - no id in any path or body
 GET  /me/history                         GET/PATCH /me/preferences
 GET  /me/interventions                   POST /me/interventions/{id}/respond
+GET/POST /me/devices                     DELETE /me/devices/{id}
 GET/POST /me/self-report
 
 # manager or admin - aggregates only, never individuals

@@ -1,3 +1,4 @@
+import hashlib
 import time
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -12,6 +13,12 @@ from apps.backend.core.redis_client import get_redis
 DEFAULT_LIMIT_PER_MINUTE = 120
 AUTH_LIMIT_PER_MINUTE = 10
 AUTH_PATHS = ("/auth/login",)
+
+# Probes and the scrape target. A liveness probe that gets a 429 is read by
+# the orchestrator as a dead container, so rate limiting these would turn a
+# burst of traffic into a rolling restart - the limiter causing the outage
+# it exists to prevent.
+EXEMPT_PATHS = ("/health", "/health/live", "/health/ready", "/metrics")
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -40,7 +47,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in ("/health", "/metrics"):
+        if request.url.path in EXEMPT_PATHS:
             return await call_next(request)
 
         identity = self._identity(request)
@@ -69,9 +76,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def _identity(request: Request) -> str:
         # Bucket by token when present so one noisy client cannot exhaust the
         # budget for everyone behind the same NAT/proxy address.
+        #
+        # sha256, not hash(): Python randomises string hashing per process,
+        # so the same token produced a different Redis key on every replica
+        # and the shared budget this class claims to enforce was silently
+        # per-process. Digesting also keeps the raw token out of the key.
         auth = request.headers.get("Authorization")
         if auth:
-            return f"token:{hash(auth) & 0xFFFFFFFF}"
+            return f"token:{hashlib.sha256(auth.encode()).hexdigest()[:16]}"
         client = request.client
         return f"ip:{client.host if client else 'unknown'}"
 

@@ -24,6 +24,11 @@ DEFAULT_CONSENT = {
 class AgentConfig:
     def __init__(self) -> None:
         self.backend_url = os.environ.get("WORKWELL_BACKEND_URL", "http://localhost:8000")
+        # A per-device token, provisioned by the employee themselves in the
+        # Privacy Centre ("Your devices") and shown once. It is bound to one
+        # account server-side, so this machine can only ever report for the
+        # person who registered it - and revoking it there stops this agent
+        # immediately.
         self.agent_token = os.environ.get("WORKWELL_AGENT_TOKEN", "")
         self.employee_id = os.environ.get("WORKWELL_EMPLOYEE_ID", "")
         self.report_interval_seconds = int(os.environ.get("WORKWELL_REPORT_INTERVAL_SECONDS", "300"))

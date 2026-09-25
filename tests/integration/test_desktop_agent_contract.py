@@ -15,11 +15,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
 from sqlalchemy import select
 
-from apps.backend.core.config import get_settings
 from apps.backend.models import TelemetryEvent
+from apps.backend.services import device_service
 from tests.integration.conftest import make_user
 
 DESKTOP_AGENT_ROOT = Path(__file__).resolve().parents[2] / "apps" / "desktop-agent"
@@ -70,13 +69,15 @@ def build_agent_features(consent: dict) -> dict:
     return collect_features(gate, session, tracker, StubActivityCollector())
 
 
-@pytest.fixture()
-def agent_headers():
-    return {"Authorization": f"Bearer {get_settings().app_secret_key}"}
+def device_headers(db_session, employee) -> dict:
+    """A real provisioned device token, bound to this employee."""
+    _, token = device_service.provision(db_session, employee.id, "test laptop")
+    return {"Authorization": f"Bearer {token}"}
 
 
-def test_agent_payload_is_accepted_by_the_endpoint(app_client, db_session, org, agent_headers):
+def test_agent_payload_is_accepted_by_the_endpoint(app_client, db_session, org):
     employee = make_user(db_session, org, "employee", "agent_ok", "agent_ok@example.com")
+    agent_headers = device_headers(db_session, employee)
     features = build_agent_features(dict(ALL_SOURCES))
 
     res = app_client.post(
@@ -98,10 +99,11 @@ def test_agent_payload_is_accepted_by_the_endpoint(app_client, db_session, org, 
     assert stored.features["active_minutes"] == 20.0
 
 
-def test_every_field_the_agent_emits_is_a_known_feature(app_client, db_session, org, agent_headers):
+def test_every_field_the_agent_emits_is_a_known_feature(app_client, db_session, org):
     """DesktopFeatures forbids extras, so this fails loudly if the agent
     adds a field the schema doesn't know about."""
     employee = make_user(db_session, org, "employee", "agent_fields", "agent_fields@example.com")
+    agent_headers = device_headers(db_session, employee)
     features = build_agent_features(dict(ALL_SOURCES))
 
     res = app_client.post(
@@ -155,5 +157,65 @@ def test_endpoint_rejects_a_bad_agent_token(app_client, db_session, org):
             "features": {"active_minutes": 30},
         },
         headers={"Authorization": "Bearer not-the-agent-token"},
+    )
+    assert res.status_code == 401
+
+
+def test_a_device_cannot_report_for_someone_else(app_client, db_session, org):
+    """The whole reason per-device tokens replaced a shared secret: with
+    one shared credential, anyone who could read an agent config - a file
+    on their own laptop - could post fabricated telemetry as a colleague."""
+    mine = make_user(db_session, org, "employee", "agent_mine", "agent_mine@example.com")
+    colleague = make_user(db_session, org, "employee", "agent_theirs", "agent_theirs@example.com")
+
+    res = app_client.post(
+        "/telemetry/events",
+        json={
+            "employee_id": colleague.id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "features": {"active_minutes": 600},
+        },
+        headers=device_headers(db_session, mine),
+    )
+
+    assert res.status_code == 403
+    assert not db_session.scalars(
+        select(TelemetryEvent).where(TelemetryEvent.employee_id == colleague.id)
+    ).all()
+
+
+def test_a_revoked_device_stops_being_accepted(app_client, db_session, org):
+    employee = make_user(db_session, org, "employee", "agent_revoked", "agent_revoked@example.com")
+    device, token = device_service.provision(db_session, employee.id, "old laptop")
+    device_service.revoke(db_session, device.id, employee.id)
+
+    res = app_client.post(
+        "/telemetry/events",
+        json={
+            "employee_id": employee.id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "features": {"active_minutes": 30},
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 401
+
+
+def test_a_deactivated_employees_laptop_stops_reporting(app_client, db_session, org):
+    """Deactivating a leaver has to stop their machine too, not only stop
+    them logging in."""
+    employee = make_user(db_session, org, "employee", "agent_left", "agent_left@example.com")
+    headers = device_headers(db_session, employee)
+    employee.is_active = False
+    db_session.commit()
+
+    res = app_client.post(
+        "/telemetry/events",
+        json={
+            "employee_id": employee.id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "features": {"active_minutes": 30},
+        },
+        headers=headers,
     )
     assert res.status_code == 401

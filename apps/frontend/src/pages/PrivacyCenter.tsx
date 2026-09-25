@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
+import DeviceList from "../components/DeviceList";
 import PageHeader from "../components/PageHeader";
 import Toggle from "../components/Toggle";
 import type { DataSourceInfo } from "../types";
@@ -116,6 +117,8 @@ export default function PrivacyCenter() {
           </div>
         ))}
       </div>
+
+      <DeviceList />
 
       {notifications !== null && (
         <>

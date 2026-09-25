@@ -4,6 +4,8 @@ import type {
   ChatMessage,
   DailyHistoryPoint,
   DataSourceInfo,
+  Device,
+  DeviceCreated,
   Intervention,
   OrgSettings,
   OrgUser,
@@ -86,6 +88,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ rating, comment: comment ?? null }),
     }),
+  listDevices: () => request<Device[]>("/me/devices"),
+  createDevice: (label: string) =>
+    request<DeviceCreated>("/me/devices", { method: "POST", body: JSON.stringify({ label }) }),
+  revokeDevice: (id: string) => request<void>(`/me/devices/${id}`, { method: "DELETE" }),
   getPreferences: () => request<Preferences>("/me/preferences"),
   setNotifications: (enabled: boolean) =>
     request<Preferences>("/me/preferences", {

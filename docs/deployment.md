@@ -74,9 +74,10 @@ cp /etc/letsencrypt/live/workwell.example.com/{fullchain,privkey}.pem ./docker/t
 sit on disk unencrypted and are readable by anyone with host access. For
 anything beyond a pilot, source `APP_SECRET_KEY` and `GEMINI_API_KEY` from AWS
 Secrets Manager, GCP Secret Manager or Vault and inject them at container
-start. Rotating `APP_SECRET_KEY` invalidates every issued JWT (all users must
-log in again) and invalidates the desktop agent's shared device token, so
-rotate it during a maintenance window and redistribute agent config.
+start. Rotating `APP_SECRET_KEY` invalidates every issued JWT (all users must log
+in again), so rotate it during a maintenance window. It no longer affects
+desktop agents: those hold per-device tokens, which are independent of it
+and revoked individually.
 
 ## Scaling beyond one host
 
@@ -270,3 +271,27 @@ production build.
 schema with `create_all`, so the migrations are never exercised by a test. A
 column added to a model without a migration passes everything locally and
 breaks the deploy.
+
+## Desktop agents
+
+Each machine holds its own token, provisioned by the employee in Privacy
+Centre → Your devices and shown exactly once. The token is bound to one
+account server-side, so an agent can only ever write telemetry for the person
+who registered it; a mismatch is a 403, not a silent write.
+
+This replaced a single shared secret that every install held, with the agent
+naming in the request body which employee it was reporting for. Anyone who
+could read an agent config — a file on their own laptop — could post
+fabricated telemetry as a colleague, in a product whose entire output is a
+statement about an individual's work pattern.
+
+Consequences for an existing deployment:
+
+- **Every installed agent stops working on upgrade.** There is no migration
+  path, deliberately: the old credential could write for anyone. Employees
+  re-register their machines from the Privacy Centre.
+- Deactivating someone in Administration → People also stops their machine
+  reporting, not only their login.
+- Revoking a device (lost laptop, a machine handed back) takes effect on the
+  next request. Tokens are stored as SHA-256 digests, so a database dump does
+  not yield working credentials.

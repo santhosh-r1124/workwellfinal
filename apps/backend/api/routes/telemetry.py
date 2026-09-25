@@ -1,9 +1,9 @@
 from datetime import date as date_cls
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from apps.backend.api.deps import get_db, verify_agent_token
+from apps.backend.api.deps import authenticated_device, get_db
 from apps.backend.models import SelfReport
 from apps.backend.services import baseline_service, telemetry_service
 from shared.schemas.telemetry import SelfReportIn, TelemetryEventIn
@@ -11,8 +11,25 @@ from shared.schemas.telemetry import SelfReportIn, TelemetryEventIn
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
 
-@router.post("/events", dependencies=[Depends(verify_agent_token)])
-def post_event(payload: TelemetryEventIn, db: Session = Depends(get_db)):
+def _assert_own_device(device, employee_id: str) -> None:
+    """The device's binding, not the request body, decides whose data may
+    be written. The body still carries an employee_id so a mismatch is a
+    loud 403 rather than data silently landing somewhere unexpected."""
+    if employee_id != device.employee_id:
+        raise HTTPException(
+            status_code=403,
+            detail="This device is not registered to that employee",
+        )
+
+
+@router.post("/events")
+def post_event(
+    payload: TelemetryEventIn,
+    db: Session = Depends(get_db),
+    device=Depends(authenticated_device),
+):
+    _assert_own_device(device, payload.employee_id)
+
     event = telemetry_service.ingest_event(
         db, payload.employee_id, payload.timestamp, payload.features.model_dump(exclude_none=True)
     )
@@ -20,8 +37,14 @@ def post_event(payload: TelemetryEventIn, db: Session = Depends(get_db)):
     return {"event_id": event.id, "daily_feature_id": daily.id}
 
 
-@router.post("/self-report", dependencies=[Depends(verify_agent_token)])
-def post_self_report(payload: SelfReportIn, db: Session = Depends(get_db)):
+@router.post("/self-report")
+def post_self_report(
+    payload: SelfReportIn,
+    db: Session = Depends(get_db),
+    device=Depends(authenticated_device),
+):
+    _assert_own_device(device, payload.employee_id)
+
     day_value = date_cls.fromisoformat(payload.date)
 
     existing = db.query(SelfReport).filter_by(employee_id=payload.employee_id, date=day_value).first()
@@ -49,7 +72,12 @@ def post_self_report(payload: SelfReportIn, db: Session = Depends(get_db)):
     return {"daily_feature_id": daily.id}
 
 
-@router.post("/{employee_id}/recompute-baseline", dependencies=[Depends(verify_agent_token)])
-def recompute_baseline(employee_id: str, db: Session = Depends(get_db)):
+@router.post("/{employee_id}/recompute-baseline")
+def recompute_baseline(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    device=Depends(authenticated_device),
+):
+    _assert_own_device(device, employee_id)
     pattern = baseline_service.recompute_baselines(db, employee_id)
     return {"pattern": pattern}

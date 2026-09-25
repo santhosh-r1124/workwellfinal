@@ -1,7 +1,6 @@
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from apps.backend.core.config import get_settings
 from apps.backend.core.database import get_db
 from apps.backend.core.security import decode_access_token
 from apps.backend.models import User
@@ -42,11 +41,32 @@ def require_role(*allowed_roles: str):
     return _checker
 
 
-def verify_agent_token(authorization: str | None = Header(default=None)) -> None:
-    """Desktop agents authenticate with a single shared device token (the
-    app secret key) rather than a per-user login. Real per-device
-    provisioning is a Phase 20 hardening item."""
-    settings = get_settings()
-    expected = f"Bearer {settings.app_secret_key}"
-    if not authorization or authorization != expected:
-        raise HTTPException(status_code=401, detail="Invalid agent token")
+def authenticated_device(
+    authorization: str | None = Header(default=None), db: Session = Depends(get_db)
+):
+    """The desktop agent's credential.
+
+    This used to be one shared secret for every install, with the agent
+    naming in the request body which employee it was reporting for. That
+    meant anyone who could read an agent config - a file on their own
+    laptop - could post fabricated telemetry as any colleague, in a
+    product whose entire output is a statement about an individual's work
+    pattern. Now each device has its own token, bound to one employee,
+    and the binding is what decides whose data a request may write.
+    """
+    from apps.backend.services import device_service
+
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing device token")
+
+    device = device_service.authenticate(db, authorization.split(" ", 1)[1])
+    if device is None:
+        raise HTTPException(status_code=401, detail="Invalid or revoked device token")
+
+    owner = db.get(User, device.employee_id)
+    if owner is None or not owner.is_active:
+        # Deactivating a leaver has to stop their laptop reporting too,
+        # not only stop them logging in.
+        raise HTTPException(status_code=401, detail="Device belongs to an inactive account")
+
+    return device

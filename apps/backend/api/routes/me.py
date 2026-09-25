@@ -86,7 +86,7 @@ def list_interventions(user: User = Depends(get_current_user), db: Session = Dep
             employee_response=row.employee_response,
             created_at=row.created_at.isoformat(),
         )
-        for row in agent_repo.recent_interventions(db, user.id)
+        for row in agent_repo.visible_interventions(db, user.id)
     ]
 
 

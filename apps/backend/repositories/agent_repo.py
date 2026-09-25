@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.backend.models import AgentRun, Feedback, Intervention
+from shared.constants.wellbeing import INTERVENTION_VISIBLE_DAYS
 
 
 def create_agent_run(
@@ -75,14 +76,36 @@ def latest_agent_run(db: Session, employee_id: str) -> AgentRun | None:
     return db.scalars(stmt).first()
 
 
-def recent_interventions(db: Session, employee_id: str, limit: int = 20) -> list[Intervention]:
+def visible_interventions(db: Session, employee_id: str) -> list[Intervention]:
+    """What the employee should see on their dashboard right now.
+
+    Not the same question as "what has ever been proposed". Two rules:
+
+    * one per type, newest first - a sustained pattern produces the same
+      finding repeatedly, and the newest is the one that reflects current
+      evidence. Without this the dashboard stacks up near-identical cards.
+    * nothing older than the visible window - a nudge nobody answered two
+      weeks ago has stopped being a suggestion.
+
+    Dismissed ones stay until they age out rather than vanishing on click,
+    so the employee can still rate a suggestion they just turned down;
+    that rating is the only signal the feedback loop gets about a bad one.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=INTERVENTION_VISIBLE_DAYS)
     stmt = (
         select(Intervention)
-        .where(Intervention.employee_id == employee_id)
+        .where(Intervention.employee_id == employee_id, Intervention.created_at >= cutoff)
         .order_by(Intervention.created_at.desc())
-        .limit(limit)
     )
-    return list(db.scalars(stmt))
+
+    seen: set[str] = set()
+    visible = []
+    for row in db.scalars(stmt):
+        if row.type in seen:
+            continue
+        seen.add(row.type)
+        visible.append(row)
+    return visible
 
 
 def get_intervention_for_employee(

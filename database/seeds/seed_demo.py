@@ -5,6 +5,14 @@ immediately after `docker compose up`. Run with:
 
 Safe to re-run: skips creation of rows that already exist by email/name.
 """
+import sys
+from pathlib import Path
+
+# So `python scripts/...` works from a clean shell, without the caller
+# having to know to export PYTHONPATH. The container sets it; a developer
+# following the README from a fresh terminal does not.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from apps.backend.core.database import SessionLocal
 from apps.backend.core.security import hash_password
 from apps.backend.models import Organization, Role, User

@@ -8,6 +8,14 @@ Usage: python scripts/generate_demo_data.py
 Requires database/seeds/seed_demo.py to have been run first (creates the
 demo users this script writes telemetry for).
 """
+import sys
+from pathlib import Path
+
+# So `python scripts/...` works from a clean shell, without the caller
+# having to know to export PYTHONPATH. The container sets it; a developer
+# following the README from a fresh terminal does not.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import random
 from datetime import date, datetime, time, timedelta
 

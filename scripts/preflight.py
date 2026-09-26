@@ -287,6 +287,37 @@ def check_env(compose_text: str, compose_name: str, env: dict, report: Report) -
             bool(value),
             f"{compose_name}: {var} is required (${{{var}:?}}) but has no value",
         )
+    check_provider_pair(compose_name, env, report)
+
+
+def check_provider_pair(compose_name: str, env: dict, report: Report) -> None:
+    """AI_PROVIDER and GEMINI_API_KEY are only valid together.
+
+    The key cannot simply be ${GEMINI_API_KEY:?}: running with no model at
+    all is a documented, supported configuration - the statistics do not
+    depend on one. But leaving AI_PROVIDER at its gemini default with no
+    key is a container that exits at boot, so the pair is checked here
+    rather than the key alone."""
+    def value(var: str) -> str:
+        return (env.get(var) or os.environ.get(var) or "").strip()
+
+    provider = value("AI_PROVIDER") or "gemini"
+    if provider.lower() == "local":
+        # Worth saying out loud rather than passing silently: this deploy
+        # will show canned sentences to every employee, and no health check
+        # will ever complain about it.
+        report.check(
+            False,
+            f"{compose_name}: AI_PROVIDER=local - detection is unaffected, but every "
+            f"explanation shown to an employee will be canned text, not generated",
+            warn_only=True,
+        )
+        return
+    report.check(
+        bool(value("GEMINI_API_KEY")),
+        f"{compose_name}: AI_PROVIDER={provider} needs GEMINI_API_KEY, which has no value "
+        f"- set the key, or set AI_PROVIDER=local to run without a model",
+    )
 
 
 def check_settings_coverage(compose_text: str, compose_name: str, report: Report) -> None:

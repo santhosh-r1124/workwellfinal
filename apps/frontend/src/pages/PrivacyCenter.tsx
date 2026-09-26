@@ -89,7 +89,7 @@ export default function PrivacyCenter() {
               <div className="flex items-center gap-3 shrink-0">
                 <button
                   onClick={() => setExpanded(expanded === s.key ? null : s.key)}
-                  className="text-[12px] text-accent hover:underline"
+                  className="text-[12px] text-accent underline underline-offset-2 decoration-1 hover:decoration-2"
                   aria-expanded={expanded === s.key}
                 >
                   {expanded === s.key ? "Hide" : "Details"}

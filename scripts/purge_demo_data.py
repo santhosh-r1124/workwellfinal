@@ -47,8 +47,7 @@ from apps.backend.models import (  # noqa: E402
     TelemetryEvent,
     User,
 )
-
-DEMO_EMAIL_DOMAIN = "@demo.workwell.ai"
+from shared.constants.demo import DEMO_EMAIL_DOMAIN  # noqa: E402
 
 # Order matters: children before the rows they reference.
 BY_EMPLOYEE = [

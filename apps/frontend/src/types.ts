@@ -196,3 +196,11 @@ export interface AuditLogEntry {
   meta: Record<string, unknown>;
   created_at: string;
 }
+
+/** A seeded fixture account, if this deployment still has any. Empty on
+ *  anything running on real data - see GET /auth/demo-accounts. */
+export interface DemoAccount {
+  email: string;
+  role: string;
+  password: string;
+}

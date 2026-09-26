@@ -80,7 +80,10 @@ export default function AssistantBubble() {
           role="dialog"
           aria-label="WorkWell assistant"
         >
-          <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-line-soft bg-surface-sunken">
+          <header
+            className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--glass-border)]"
+            style={{ background: "var(--glass-bg)" }}
+          >
             <div className="flex items-center gap-2.5">
               <span className="relative flex h-7 w-7 items-center justify-center rounded-lg bg-accent-ghost text-accent">
                 <Icon name="spark" className="w-3.5 h-3.5" />
@@ -94,7 +97,7 @@ export default function AssistantBubble() {
             </div>
             <button
               onClick={() => setOpen(false)}
-              className="rounded-md p-1.5 text-text-faint hover:text-text hover:bg-surface-raised"
+              className="rounded-md p-1.5 text-text-faint hover:text-text hover:bg-[var(--glass-bg-strong)]"
               aria-label="Close assistant"
             >
               <Icon name="close" />
@@ -107,7 +110,7 @@ export default function AssistantBubble() {
                 key={i}
                 className={`max-w-[88%] rounded-xl px-3.5 py-2.5 text-[13px] leading-relaxed animate-fade-up ${
                   m.role === "user"
-                    ? "ml-auto bg-accent-deep text-[#04121d]"
+                    ? "ml-auto bg-accent-deep text-on-accent"
                     : "bg-surface-sunken border border-line-soft"
                 }`}
               >
@@ -183,7 +186,8 @@ export default function AssistantBubble() {
       <button
         onClick={() => setOpen((v) => !v)}
         className="fixed bottom-6 right-6 z-40 flex h-13 w-13 items-center justify-center rounded-full
-                   bg-accent text-[#05131f] shadow-lg shadow-accent/20 hover:bg-sky-300 h-14 w-14"
+                   text-on-accent shadow-lg shadow-accent/25 transition-transform hover:scale-105 h-14 w-14"
+        style={{ background: "linear-gradient(145deg, var(--accent), var(--accent-deep))" }}
         aria-label={open ? "Close assistant" : "Open assistant"}
         aria-expanded={open}
       >

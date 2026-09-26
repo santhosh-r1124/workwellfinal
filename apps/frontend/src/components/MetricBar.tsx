@@ -38,16 +38,19 @@ export default function MetricBar({ label, current, baseline, unit = "", history
         </div>
       </div>
 
-      <div className="relative h-2 rounded-full bg-surface-sunken border border-line-soft">
+      <div
+        className="relative h-2 rounded-full border border-[var(--glass-border)]"
+        style={{ background: "var(--glass-bg-sunken)" }}
+      >
         <div
           className={`h-full rounded-full transition-all duration-500 ${
-            notable ? "bg-accent" : "bg-accent-deep"
+            notable ? "bg-accent" : "bg-accent-soft"
           }`}
           style={{ width: `${widthPct}%` }}
         />
         {/* Reference tick for "your norm" - without it the fill level is an
             arbitrary number rather than a comparison. */}
-        <div className="absolute left-1/2 -top-1 -bottom-1 w-px bg-[#44566f]" aria-hidden="true" />
+        <div className="absolute left-1/2 -top-1 -bottom-1 w-px bg-line" aria-hidden="true" />
       </div>
     </div>
   );

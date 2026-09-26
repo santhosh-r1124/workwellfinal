@@ -30,11 +30,12 @@ from datetime import date, datetime, time, timedelta
 from apps.backend.core.database import SessionLocal
 from apps.backend.models import Consent, SelfReport
 from apps.backend.services import baseline_service, telemetry_service
+from shared.constants.demo import DEMO_EMAIL_DOMAIN  # noqa: E402
 from shared.enums.data_sources import DataSourceKey
 
 random.seed(42)
 
-DEMO_EMAIL_DOMAIN = "@demo.workwell.ai"
+
 
 
 def _refuse_if_this_is_real(db) -> None:

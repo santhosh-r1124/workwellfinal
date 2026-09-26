@@ -5,6 +5,7 @@ import type {
   DailyHistoryPoint,
   ConnectorInfo,
   DataSourceInfo,
+  DemoAccount,
   Device,
   DeviceCreated,
   Intervention,
@@ -51,6 +52,7 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<{ id: string; email: string; full_name: string; role: string }>("/auth/me"),
+  demoAccounts: () => request<DemoAccount[]>("/auth/demo-accounts"),
   getConsent: () => request<DataSourceInfo[]>("/consent"),
   setConsentBulk: (settings: Record<string, boolean>) =>
     request<DataSourceInfo[]>("/consent", { method: "POST", body: JSON.stringify(settings) }),

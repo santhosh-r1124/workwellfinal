@@ -24,8 +24,11 @@ export default function Toggle({ checked, onChange, label, disabled = false }: T
                   }`}
     >
       <span
-        className={`absolute top-[3px] left-[3px] h-4 w-4 rounded-full bg-white transition-transform ${
-          checked ? "translate-x-5" : ""
+        className={`absolute top-[3px] left-[3px] h-4 w-4 rounded-full shadow-sm transition-transform ${
+          // A white knob disappears into the white track the light theme
+          // gives an "off" switch - and "off" is the state where a consent
+          // control most needs to be readable at a glance.
+          checked ? "bg-white translate-x-5" : "bg-text-faint"
         }`}
       />
     </button>

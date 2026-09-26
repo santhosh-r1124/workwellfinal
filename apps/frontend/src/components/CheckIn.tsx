@@ -49,7 +49,7 @@ export default function CheckIn() {
       <div className="flex items-center justify-between gap-3 mb-1">
         <h2 className="eyebrow">Daily check-in</h2>
         {status.submitted && !editing && (
-          <button onClick={() => setEditing(true)} className="text-[12px] text-accent hover:underline">
+          <button onClick={() => setEditing(true)} className="text-[12px] text-accent underline underline-offset-2 decoration-1 hover:decoration-2">
             Update
           </button>
         )}
@@ -88,7 +88,7 @@ export default function CheckIn() {
                     aria-label={`${label} ${n}`}
                     className={`h-9 flex-1 max-w-[52px] rounded-lg font-mono text-[13px] border transition-colors ${
                       values[key] === n
-                        ? "bg-accent text-[#05131f] border-accent font-semibold"
+                        ? "bg-accent text-on-accent border-accent font-semibold"
                         : "bg-surface-sunken border-line text-text-muted hover:text-text hover:bg-surface-raised"
                     }`}
                   >

@@ -25,20 +25,28 @@ export default {
         accent: {
           DEFAULT: channel("--accent-rgb"),
           deep: channel("--accent-deep-rgb"),
-          ghost: "rgb(var(--accent-rgb) / 0.12)",
+          /* A second, quieter step so "notable" and "normal" stay
+             distinguishable in the light theme, where both the accent
+             and its deep variant are simply black. */
+          soft: channel("--accent-soft-rgb"),
+          ghost: "var(--accent-ghost)",
         },
+        "on-accent": channel("--on-accent-rgb"),
         attention: {
           DEFAULT: channel("--attention-rgb"),
-          ghost: "rgb(var(--attention-rgb) / 0.1)",
+          ghost: "var(--attention-ghost)",
         },
         positive: {
           DEFAULT: channel("--positive-rgb"),
-          ghost: "rgb(var(--positive-rgb) / 0.1)",
+          ghost: "var(--positive-ghost)",
         },
       },
       fontFamily: {
         sans: ['"IBM Plex Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ['"IBM Plex Mono"', "ui-monospace", "SFMono-Regular", "monospace"],
+      },
+      backdropBlur: {
+        glass: "20px",
       },
       keyframes: {
         "fade-up": {

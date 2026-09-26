@@ -1,32 +1,128 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens. Neutrals carry a slight blue bias toward the accent so the
-   greys read as chosen rather than inherited. Semantic colours are kept
-   separate from the accent hue: "attention" must not be the same signal as
-   "this is interactive". */
+/* Two themes, one set of names.
+   ---------------------------------------------------------------------
+   Dark is blue and white: near-black navy ground, luminous azure, light
+   that appears to come from above-left. Light is black and white: paper
+   ground, ink text, no hue at all in the chrome.
+
+   Everything below is a token. Components never name a colour, which is
+   why adding a second theme touched this file and almost nothing else -
+   and why the handful of literal hexes that had crept into components
+   had to go: each one was a white-on-white bug waiting for the switch.
+
+   The only colour that survives in the light theme is a status signal
+   (attention, positive). Those two carry meaning that weight and size
+   cannot; rendering them as ink would make "flagged" and "fine" look
+   identical. Monochrome chrome with colour reserved for signal is a
+   stronger rule than monochrome everything. */
 :root {
-  /* Channel triplets so Tailwind's /opacity modifiers work, plus a resolved
-     colour for use in plain CSS and SVG attributes. */
-  --ground-rgb: 8 13 22;
-  --surface-rgb: 16 24 39;
-  --surface-sunken-rgb: 12 19 31;
-  --surface-raised-rgb: 22 32 58;
-  --line-rgb: 30 42 61;
-  --line-soft-rgb: 23 32 50;
+  color-scheme: dark;
 
-  --text-rgb: 230 237 246;
-  --text-muted-rgb: 154 171 194;
-  --text-faint-rgb: 100 116 139;
+  /* Channel triplets so Tailwind's /opacity modifiers work, plus a
+     resolved colour for plain CSS and SVG attributes. */
+  --ground-rgb: 6 11 24;
+  --surface-rgb: 17 26 46;
+  --surface-sunken-rgb: 11 18 34;
+  --surface-raised-rgb: 26 39 66;
+  --line-rgb: 46 62 96;
+  --line-soft-rgb: 32 45 72;
 
-  --accent-rgb: 56 189 248;
-  --accent-deep-rgb: 14 165 233;
+  --text-rgb: 226 236 255;
+  --text-muted-rgb: 154 175 208;
+  --text-faint-rgb: 110 131 166;
+
+  --accent-rgb: 99 179 255;
+  --accent-deep-rgb: 45 125 246;
+  --accent-soft-rgb: 60 106 176;
+  --on-accent-rgb: 5 17 34;
+
   --attention-rgb: 251 191 36;
   --positive-rgb: 52 211 153;
 
+  --accent-ghost-alpha: 0.12;
+  --signal-ghost-alpha: 0.1;
+
+  /* Glass. Translucency alone reads as "faded"; what makes it read as a
+     material is the lit top edge plus a blur with something behind it to
+     refract - hence --field below. */
+  --glass-bg: rgb(255 255 255 / 0.055);
+  --glass-bg-strong: rgb(255 255 255 / 0.085);
+  --glass-bg-sunken: rgb(3 8 18 / 0.35);
+  --glass-border: rgb(255 255 255 / 0.11);
+  --glass-border-strong: rgb(255 255 255 / 0.17);
+  --glass-edge: rgb(255 255 255 / 0.22);
+  --glass-blur: 20px;
+  --glass-saturate: 150%;
+  --glass-shadow: 0 20px 45px -24px rgb(0 0 0 / 0.85);
+  --glass-shadow-lift: 0 28px 60px -28px rgb(0 0 0 / 0.95);
+
+  /* The ambient field the glass refracts. Fixed behind everything, so
+     scrolling moves the cards across the light rather than dragging the
+     light with them. */
+  --field:
+    radial-gradient(1200px 720px at 4% -12%, rgb(59 130 246 / 0.40), transparent 60%),
+    radial-gradient(900px 620px at 100% -2%, rgb(125 211 252 / 0.22), transparent 58%),
+    radial-gradient(760px 560px at 82% 46%, rgb(96 165 250 / 0.13), transparent 60%),
+    radial-gradient(1150px 900px at 48% 118%, rgb(29 78 216 / 0.32), transparent 62%);
+
+  --scrollbar-thumb: rgb(255 255 255 / 0.16);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --ground-rgb: 239 240 244;
+  --surface-rgb: 255 255 255;
+  --surface-sunken-rgb: 242 242 245;
+  --surface-raised-rgb: 255 255 255;
+  --line-rgb: 210 210 217;
+  --line-soft-rgb: 228 228 234;
+
+  --text-rgb: 13 13 17;
+  --text-muted-rgb: 88 88 98;
+  --text-faint-rgb: 102 102 112;
+
+  /* Ink, not blue. The primary action is black on white. */
+  --accent-rgb: 17 17 21;
+  --accent-deep-rgb: 0 0 0;
+  --accent-soft-rgb: 150 150 160;
+  --on-accent-rgb: 255 255 255;
+
+  /* Deepened so they read as ink with a tint rather than as highlighter.
+     These are the only colours the light theme has, so they are the two
+     that have to be legible rather than decorative: both clear 5:1 on the
+     ground and on a glass card. The first pass had amber at 4.3:1 on the
+     ground, which is a warning nobody with tired eyes reads. */
+  --attention-rgb: 146 88 6;
+  --positive-rgb: 4 120 87;
+
+  --accent-ghost-alpha: 0.08;
+  --signal-ghost-alpha: 0.05;
+
+  --glass-bg: rgb(255 255 255 / 0.72);
+  --glass-bg-strong: rgb(255 255 255 / 0.88);
+  --glass-bg-sunken: rgb(244 244 248 / 0.72);
+  --glass-border: rgb(12 12 20 / 0.10);
+  --glass-border-strong: rgb(12 12 20 / 0.16);
+  --glass-edge: rgb(255 255 255 / 0.95);
+  --glass-blur: 18px;
+  --glass-saturate: 120%;
+  --glass-shadow: 0 18px 40px -26px rgb(10 10 25 / 0.35);
+  --glass-shadow-lift: 0 26px 55px -28px rgb(10 10 25 / 0.42);
+
+  --field:
+    radial-gradient(1200px 720px at 4% -12%, rgb(15 17 26 / 0.13), transparent 60%),
+    radial-gradient(900px 620px at 100% -2%, rgb(15 17 26 / 0.08), transparent 58%),
+    radial-gradient(760px 560px at 82% 46%, rgb(15 17 26 / 0.05), transparent 60%),
+    radial-gradient(1150px 900px at 48% 118%, rgb(15 17 26 / 0.11), transparent 62%);
+
+  --scrollbar-thumb: rgb(12 12 20 / 0.22);
+}
+
+:root {
   --ground: rgb(var(--ground-rgb));
   --surface: rgb(var(--surface-rgb));
   --surface-sunken: rgb(var(--surface-sunken-rgb));
@@ -40,12 +136,14 @@
 
   --accent: rgb(var(--accent-rgb));
   --accent-deep: rgb(var(--accent-deep-rgb));
-  --accent-ghost: rgb(var(--accent-rgb) / 0.12);
+  --accent-soft: rgb(var(--accent-soft-rgb));
+  --accent-ghost: rgb(var(--accent-rgb) / var(--accent-ghost-alpha));
+  --on-accent: rgb(var(--on-accent-rgb));
 
   --attention: rgb(var(--attention-rgb));
-  --attention-ghost: rgb(var(--attention-rgb) / 0.1);
+  --attention-ghost: rgb(var(--attention-rgb) / var(--signal-ghost-alpha));
   --positive: rgb(var(--positive-rgb));
-  --positive-ghost: rgb(var(--positive-rgb) / 0.1);
+  --positive-ghost: rgb(var(--positive-rgb) / var(--signal-ghost-alpha));
 }
 
 html,
@@ -54,22 +152,77 @@ body,
   height: 100%;
 }
 
+html {
+  background: var(--ground);
+}
+
 body {
   margin: 0;
-  background: var(--ground);
   color: var(--text);
   font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+
+  /* The light the glass refracts. On the body's own background rather than
+     a pseudo-element: the boot script sets an inline background on <html>
+     so the first paint is the right colour, which stops the body's
+     background propagating to the canvas - and a z-index:-1 pseudo-element
+     then paints *behind* the body's own background, which is to say not at
+     all. It cost a round of "why is the glass sitting on flat black".
+
+     `fixed` keeps the field still while the page scrolls, so cards move
+     across the light instead of dragging it along with them. */
+  background-color: transparent;
+  background-image: var(--field);
+  background-attachment: fixed;
+}
+
+/* Switching themes shouldn't strobe, but nothing should crawl either. */
+html,
+body {
+  transition:
+    background-color 0.35s ease,
+    color 0.35s ease;
 }
 
 @layer components {
+  /* The glass material itself. .panel is the default card; everything
+     else here is the same material at a different thickness. */
+  .glass {
+    position: relative;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    box-shadow: var(--glass-shadow);
+  }
+
+  /* The lit edge. Without it translucency reads as a faded card rather
+     than as a pane with a thickness and a light source. */
+  .glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding-top: 1px;
+    background: linear-gradient(to bottom, var(--glass-edge), transparent 42%);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
   .panel {
-    @apply bg-surface border border-line-soft rounded-xl;
+    @apply glass rounded-2xl;
   }
 
   /* Not everything is a card: this is for the one block that should lift. */
   .panel-raised {
-    @apply bg-surface border border-line rounded-xl shadow-lg shadow-black/30;
+    @apply glass rounded-2xl;
+    background: var(--glass-bg-strong);
+    border-color: var(--glass-border-strong);
+    box-shadow: var(--glass-shadow-lift);
   }
 
   .chip {
@@ -77,22 +230,52 @@ body {
   }
 
   .btn {
-    @apply rounded-lg px-3 py-1.5 text-[13px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply rounded-xl px-3 py-1.5 text-[13px] transition-all disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-accent text-[#05131f] font-semibold hover:bg-sky-300;
+    @apply btn font-semibold;
+    background: linear-gradient(180deg, var(--accent), var(--accent-deep));
+    color: var(--on-accent);
+    box-shadow: 0 8px 22px -12px rgb(var(--accent-rgb) / 0.9);
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
   }
   .btn-quiet {
-    @apply btn border border-line bg-surface-sunken text-text hover:bg-surface-raised;
+    @apply btn;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    color: var(--text);
+    backdrop-filter: blur(12px) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(12px) saturate(var(--glass-saturate));
+  }
+  .btn-quiet:hover:not(:disabled) {
+    background: var(--glass-bg-strong);
+    border-color: var(--glass-border-strong);
   }
 
   .field {
-    @apply w-full rounded-lg bg-surface-sunken border border-line px-3 py-2 text-text
-           placeholder:text-text-faint focus:outline-none focus:ring-2 focus:ring-accent/60;
+    @apply w-full rounded-xl px-3 py-2 text-text placeholder:text-text-faint
+           focus:outline-none focus:ring-2 focus:ring-accent/50;
+    background: var(--glass-bg-sunken);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
   }
 
   .eyebrow {
     @apply text-[11px] uppercase tracking-[0.08em] text-text-faint font-semibold;
+  }
+}
+
+/* Where the browser cannot blur, translucency only costs legibility. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass,
+  .panel,
+  .panel-raised,
+  .btn-quiet,
+  .field {
+    background: var(--surface);
   }
 }
 
@@ -106,9 +289,10 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1f2b3f;
+  background: var(--scrollbar-thumb);
   border-radius: 99px;
-  border: 2px solid var(--ground);
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 ::-webkit-scrollbar-track {
   background: transparent;

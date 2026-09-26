@@ -16,10 +16,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from apps.backend.core.database import SessionLocal
 from apps.backend.core.security import hash_password
 from apps.backend.models import Organization, Role, User
+from shared.constants.demo import DEMO_PASSWORD
 from shared.enums.roles import RoleName
 
 DEMO_ORG_NAME = "WorkWell Demo Org"
-DEMO_PASSWORD = "workwell-demo"
 DEMO_TEAM = "Engineering"
 
 DEMO_EMPLOYEES = [

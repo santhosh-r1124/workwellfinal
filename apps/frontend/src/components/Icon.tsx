@@ -9,9 +9,11 @@ const PATHS: Record<string, string> = {
   send: "M3 11.5 21 3l-8.5 18-2-7-7-2.5Z",
   logout: "M10 4H5v16h5M15 8l4 4-4 4M19 12H9",
   spark: "M13 2 4 14h6l-1 8 9-12h-6l1-8Z",
+  sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4",
+  moon: "M20.5 14.8A8.6 8.6 0 0 1 9.2 3.5a7.8 7.8 0 1 0 11.3 11.3Z",
 };
 
-const FILLED = new Set(["dashboard", "privacy", "teams", "admin", "chat", "send", "spark"]);
+const FILLED = new Set(["dashboard", "privacy", "teams", "admin", "chat", "send", "spark", "moon"]);
 
 export default function Icon({
   name,

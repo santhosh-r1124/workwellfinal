@@ -68,6 +68,22 @@ rag/, safety/, integrations/, shared/, database/, scripts/, tests/
   (`safety`, `apps/worker`) shipped that way.
 - **The `eyebrow` CSS class uppercases headings**, so `inner_text` returns
   "PEOPLE" not "People". Three browser assertions have failed on this.
+- **Never name a colour in a component.** Every surface, text and signal
+  colour is a token in `index.css`, redefined per theme; that is why
+  adding the light theme touched one file and a handful of literal hexes.
+  Each of those hexes was a white-on-white bug waiting for the switch.
+- **The boot script in `index.html` sets an inline background on `<html>`**
+  so first paint is the right colour. That stops the body background
+  propagating to the canvas - which silently broke a `z-index: -1`
+  pseudo-element carrying the ambient field, because the body's own
+  background then paints over it. The field lives on `body`'s
+  `background-image` for that reason.
+- **Fonts are served from `public/fonts`, not fonts.googleapis.com.** A
+  third-party request on every page view, from this product, was the wrong
+  default. One file per subset: Plex Sans is a variable font, so Google's
+  per-weight URLs are the same bytes repeated.
+- **Check contrast, don't eyeball it.** The light theme's faintest text
+  landed at 3.4:1 and looked fine in a screenshot.
 - **Drive the UI in a browser for anything user-facing.** Every round of it
   has found something the 280-test suite and TypeScript could not —
   metric bars pinned at 100%, −100% on unreported metrics, duplicate cards,
@@ -82,8 +98,23 @@ python -m apps.worker # the daily sweep; without it nothing is analysed
 ```
 
 `AI_PROVIDER=local` runs everything offline against a deterministic mock —
-that is what the suite uses. `docs/going-live.md` covers real keys;
+that is what the suite uses, and it is a supported way to run the product,
+not only a test mode. The app refuses to start only for
+`AI_PROVIDER=gemini` with no key, since that configuration believes it is
+generating text and silently is not. `docs/going-live.md` covers real keys;
 `docs/deployment.md` covers operating it.
+
+## The interface
+
+Two themes off one set of tokens: dark is blue and white, light is black
+and white. Surfaces are glass — translucent, blurred, with a lit top edge
+over an ambient field on the body background. The only colour in the light
+theme is a status signal (`attention`, `positive`), because weight and size
+cannot carry "this is flagged" on their own.
+
+The theme follows the operating system until someone picks one, and then
+stops following it: a reader who chose light at 09:00 should not be
+dropped into dark at dusk.
 
 ## Style
 

@@ -21,7 +21,15 @@ dynamics and meeting load. The OAuth four add convenience and a little
 extra context, not new detection ability.
 
 The product runs with **no key at all** — every number on the dashboard
-is computed by `ml/`, independent of any model. The key buys prose.
+is computed by `ml/`, independent of any model. The key buys prose. That
+path is `AI_PROVIDER=local`, and it is a real configuration, not a
+fallback: the app starts, `/health` reports `ai: not_configured`, and
+every explanation is a canned sentence written from the measured evidence.
+In production it logs a warning saying so on every boot, because nothing
+else in the product distinguishes canned text from generated text.
+
+Leaving `AI_PROVIDER=gemini` with no key is the one combination that
+refuses to start, and it says which of the two you probably meant.
 
 ### Staying inside a free tier
 
@@ -61,7 +69,7 @@ before anyone opens the assistant.
 
 ```bash
 GEMINI_API_KEY=...            # ai.google.dev -> Get API key
-AI_PROVIDER=gemini
+AI_PROVIDER=gemini            # or `local` for no model at all
 GEMINI_MODEL=gemini-3.8-flash
 GEMINI_EMBEDDING_MODEL=text-embedding-004
 GEMINI_EMBEDDING_DIM=768
@@ -235,8 +243,10 @@ cp .env.example .env            # set GEMINI_API_KEY, APP_SECRET_KEY,
                                 # VITE_API_BASE_URL, APP_BASE_URL
 
 # 2. check the config before it costs you a deploy
-make preflight
-make smoke-provider
+make preflight            # refuses AI_PROVIDER=gemini with no key,
+                          # and says so rather than letting the container
+                          # exit at boot
+make smoke-provider       # only meaningful once a key is set
 
 # 3. bring it up
 docker compose -f docker-compose.prod.yml up --build -d

@@ -162,8 +162,8 @@ export default function Dashboard() {
 
       {changed && (
         <div className="panel-raised border-accent/25 bg-gradient-to-b from-accent-ghost to-transparent p-5 mb-6">
-          <p className="text-[13.5px] text-[#bde5fb]">
-            <strong className="font-semibold text-[#e6f6ff]">
+          <p className="text-[13.5px] text-text-muted">
+            <strong className="font-semibold text-text">
               {STATE_LABEL[latest.state] || latest.state}.
             </strong>{" "}
             Your recent work pattern has differed from your usual pattern for {latest.duration_days}{" "}

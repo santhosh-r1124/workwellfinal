@@ -32,14 +32,14 @@ export default function BaselineProgress({ readiness }: { readiness: BaselineRea
             </p>
             <ul className="mt-3 space-y-1.5 text-[13px] text-text-muted">
               <li>
-                <Link to="/privacy" className="text-accent hover:underline">
+                <Link to="/privacy" className="text-accent underline underline-offset-2 decoration-1 hover:decoration-2">
                   Register a device
                 </Link>{" "}
                 and run the agent on the machine you work on.
               </li>
               <li>
                 Optionally{" "}
-                <Link to="/privacy" className="text-accent hover:underline">
+                <Link to="/privacy" className="text-accent underline underline-offset-2 decoration-1 hover:decoration-2">
                   connect a calendar
                 </Link>{" "}
                 for meeting load.
@@ -58,21 +58,23 @@ export default function BaselineProgress({ readiness }: { readiness: BaselineRea
 
   return (
     <section className="panel p-5 mb-7">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold">Learning your normal</h2>
-          <p className="text-[13px] text-text-muted mt-1">
-            {measured} of {required} days measured.{" "}
-            {remaining > 0
-              ? `${remaining} more before there is enough of your own history to compare against.`
-              : "Almost there."}
-          </p>
-        </div>
+      {/* The percentage rides the heading rather than the paragraph: wrapped
+          onto its own line on a phone, it read as a stray number floating
+          above the bar. */}
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-[15px] font-semibold">Learning your normal</h2>
         <span className="chip border-line text-text-muted font-mono shrink-0">{pct}%</span>
       </div>
+      <p className="text-[13px] text-text-muted mt-1">
+        {measured} of {required} days measured.{" "}
+        {remaining > 0
+          ? `${remaining} more before there is enough of your own history to compare against.`
+          : "Almost there."}
+      </p>
 
       <div
-        className="mt-3.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-raised"
+        style={{ background: "var(--glass-bg-sunken)" }}
+        className="mt-3.5 h-1.5 w-full overflow-hidden rounded-full border border-[var(--glass-border)]"
         role="progressbar"
         aria-valuenow={measured}
         aria-valuemin={0}

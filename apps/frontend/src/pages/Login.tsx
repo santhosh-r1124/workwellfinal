@@ -1,21 +1,37 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { api } from "../api/client";
+import { Mark } from "../components/AppShell";
+import ThemeToggle from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
+import type { DemoAccount } from "../types";
 
-const DEMO_ACCOUNTS = [
-  { email: "employee.b@demo.workwell.ai", label: "Employee", hint: "rising overtime" },
-  { email: "manager@demo.workwell.ai", label: "Manager", hint: "team aggregates" },
-  { email: "admin@demo.workwell.ai", label: "Admin", hint: "org policy" },
-];
+const ROLE_HINT: Record<string, string> = {
+  employee: "their own pattern",
+  manager: "team aggregates",
+  admin: "org policy",
+};
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState(DEMO_ACCOUNTS[0].email);
-  const [password, setPassword] = useState("workwell-demo");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Which fixture accounts this deployment still has - none, on anything
+  // running on real data. Hardcoding them here meant the first screen of
+  // the product kept offering credentials that had been purged, which
+  // reads as a broken login rather than a cleaned database.
+  const [demo, setDemo] = useState<DemoAccount[]>([]);
+  useEffect(() => {
+    api
+      .demoAccounts()
+      .then(setDemo)
+      .catch(() => setDemo([]));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,11 +49,15 @@ export default function Login() {
 
   return (
     <div className="min-h-full flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="flex items-center gap-2.5 mb-7">
-          <span className="h-8 w-8 rounded-lg bg-gradient-to-br from-accent to-accent-deep" />
+      <div className="fixed top-4 right-4">
+        <ThemeToggle />
+      </div>
+
+      <div className="w-full max-w-sm animate-fade-up">
+        <div className="flex items-center gap-3 mb-7">
+          <Mark size={34} />
           <div>
-            <div className="font-bold tracking-tight text-[17px] leading-tight">WorkWell AI</div>
+            <div className="font-bold tracking-tight text-[18px] leading-tight">WorkWell AI</div>
             <div className="text-[12px] text-text-faint leading-tight">
               Wellness early-warning &amp; support
             </div>
@@ -80,28 +100,37 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-5">
-          <p className="eyebrow mb-2">Demo accounts</p>
-          <div className="space-y-1.5">
-            {DEMO_ACCOUNTS.map((a) => (
-              <button
-                key={a.email}
-                onClick={() => setEmail(a.email)}
-                className={`w-full flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
-                  email === a.email
-                    ? "border-accent/40 bg-accent-ghost"
-                    : "border-line-soft bg-surface hover:bg-surface-raised"
-                }`}
-              >
-                <span className="text-[13px] font-medium">{a.label}</span>
-                <span className="text-[11px] text-text-faint">{a.hint}</span>
-              </button>
-            ))}
+        {demo.length > 0 && (
+          <div className="mt-5">
+            <p className="eyebrow mb-2">Demo accounts on this deployment</p>
+            <div className="space-y-1.5">
+              {demo.map((a) => (
+                <button
+                  key={a.email}
+                  onClick={() => {
+                    setEmail(a.email);
+                    setPassword(a.password);
+                  }}
+                  className={`w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition-all ${
+                    email === a.email
+                      ? "border-accent/40 bg-accent-ghost"
+                      : "border-[var(--glass-border)] bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-strong)]"
+                  }`}
+                >
+                  <span className="text-[13px] font-medium capitalize">{a.role}</span>
+                  <span className="text-[11px] text-text-faint">
+                    {ROLE_HINT[a.role] ?? a.email}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="text-[11.5px] text-text-faint mt-2.5">
+              Fixture accounts, seeded deliberately. They disappear from here once
+              <span className="font-mono"> purge_demo_data.py </span>
+              has run.
+            </p>
           </div>
-          <p className="text-[11.5px] text-text-faint mt-2.5">
-            Password for all demo accounts: <span className="font-mono">workwell-demo</span>
-          </p>
-        </div>
+        )}
       </div>
     </div>
   );

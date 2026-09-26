@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -29,10 +30,23 @@ from apps.backend.middleware.security import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    if not settings.ai_configured and not settings.is_test:
+    if settings.ai_key_required and not settings.ai_configured and not settings.is_test:
         raise RuntimeError(
-            "GEMINI_API_KEY is not set. WorkWell AI requires a Gemini API key to start - "
-            "add it to your .env file. Set APP_ENV=test to bypass this for automated testing."
+            f"AI_PROVIDER={settings.ai_provider} needs GEMINI_API_KEY, which is not set. "
+            "Add it to your .env file, or set AI_PROVIDER=local to run without a model at "
+            "all - detection is unaffected either way, only the prose is. "
+            "Set APP_ENV=test to bypass this for automated testing."
+        )
+    if not settings.ai_key_required and settings.is_production:
+        # Refusing would be wrong - keyless is a supported way to run this -
+        # but silence would not be. Every explanation an employee reads in
+        # this configuration is a canned sentence, and nothing else in the
+        # product says so: /health reports ai: not_configured and stays
+        # green, which is exactly the kind of quiet degradation that lasts
+        # for months.
+        logging.getLogger("workwell").warning(
+            "AI_PROVIDER=local in production: detection is unaffected, but every "
+            "explanation shown to an employee is canned text, not generated."
         )
     yield
 

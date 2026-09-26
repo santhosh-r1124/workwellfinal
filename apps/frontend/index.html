@@ -4,14 +4,45 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="theme-color" content="#05131f" />
+    <!-- Served from this origin, not fonts.googleapis.com: see
+         public/fonts/fonts.css for why that mattered here. -->
+    <link rel="preload" href="/fonts/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <meta name="theme-color" content="#060b18" />
+    <meta name="color-scheme" content="dark light" />
     <meta
       name="description"
       content="Wellness early-warning and support, compared to your own history rather than anyone else's."
     />
     <title>WorkWell AI</title>
+    <script>
+      /* Runs before the bundle, before first paint. Applying the theme from
+         React instead costs one frame of the wrong background - which on a
+         dark-by-default product is a white flash in the reader's face every
+         time they open the app. Mirrors src/lib/theme.ts; the key name and
+         the fallback live in both places on purpose, because this has to
+         work with no modules loaded. */
+      (function () {
+        var theme = "dark";
+        try {
+          var saved = localStorage.getItem("workwell-theme");
+          theme =
+            saved === "light" || saved === "dark"
+              ? saved
+              : window.matchMedia("(prefers-color-scheme: light)").matches
+                ? "light"
+                : "dark";
+        } catch (e) {
+          /* storage blocked - fall through to the default */
+        }
+        var root = document.documentElement;
+        root.setAttribute("data-theme", theme);
+        root.style.colorScheme = theme;
+        root.style.background = theme === "light" ? "#eff0f4" : "#060b18";
+      })();
+    </script>
   </head>
-  <body class="bg-slate-950 text-slate-100">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

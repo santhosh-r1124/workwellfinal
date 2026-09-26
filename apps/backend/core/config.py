@@ -108,6 +108,19 @@ class Settings(BaseSettings):
         return bool(self.gemini_api_key)
 
     @property
+    def ai_key_required(self) -> bool:
+        """Whether the configured provider needs a credential to do anything.
+
+        `local` is the deterministic offline stand-in, and needing no key is
+        the entire point of it: every number on the dashboard comes from
+        `ml/`, so the product is meant to run with no model at all. Demanding
+        a Gemini key regardless meant the documented keyless path exited on
+        start - a container that dies at boot, in the one configuration the
+        docs tell a first-time reader to try.
+        """
+        return self.ai_provider.strip().lower() != "local"
+
+    @property
     def is_production(self) -> bool:
         return self.app_env.lower() in {"production", "prod"}
 

@@ -4,6 +4,7 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import AssistantBubble from "./AssistantBubble";
 import Icon from "./Icon";
+import ThemeToggle from "./ThemeToggle";
 
 interface NavItem {
   to: string;
@@ -20,6 +21,29 @@ const NAV: NavItem[] = [
   { to: "/admin", label: "Administration", icon: "admin", roles: ["admin"] },
 ];
 
+/** The product mark. A lit glass chip rather than a flat square, so it
+ *  belongs to the same material as everything else on the page. */
+export function Mark({ size = 28 }: { size?: number }) {
+  return (
+    <span
+      className="relative grid place-items-center rounded-xl shrink-0"
+      style={{
+        width: size,
+        height: size,
+        background: "linear-gradient(145deg, var(--accent), var(--accent-deep))",
+        boxShadow: "0 6px 18px -8px rgb(var(--accent-rgb) / 0.85)",
+      }}
+    >
+      <Icon name="spark" className="w-1/2 h-1/2 text-on-accent" />
+      <span
+        className="absolute inset-0 rounded-xl"
+        style={{ background: "linear-gradient(to bottom, rgb(255 255 255 / 0.35), transparent 55%)" }}
+        aria-hidden="true"
+      />
+    </span>
+  );
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
@@ -29,18 +53,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const items = NAV.filter((i) => i.roles.includes(user.role));
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
+    `relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] transition-all ${
       isActive
-        ? "bg-accent-ghost text-accent font-medium"
-        : "text-text-muted hover:text-text hover:bg-surface"
+        ? "bg-accent-ghost text-accent font-medium shadow-[inset_0_1px_0_0_var(--glass-edge)]"
+        : "text-text-muted hover:text-text hover:bg-[var(--glass-bg)]"
     }`;
 
-  const sidebar = (
+  // The mobile drawer opens below a header that already shows the mark, so
+  // it renders without one rather than stacking two identical logos.
+  const sidebar = (withMark: boolean) => (
     <>
-      <div className="flex items-center gap-2.5 px-3 pb-5">
-        <span className="h-7 w-7 rounded-lg bg-gradient-to-br from-accent to-accent-deep" />
-        <span className="font-bold tracking-tight">WorkWell AI</span>
-      </div>
+      {withMark && (
+        <div className="flex items-center gap-2.5 px-3 pb-5">
+          <Mark />
+          <span className="font-bold tracking-tight">WorkWell AI</span>
+        </div>
+      )}
 
       <nav className="flex flex-col gap-1">
         {items.map((item) => (
@@ -57,8 +85,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
 
-      <div className="mt-auto pt-6">
-        <div className="rounded-lg border border-line-soft bg-surface-sunken px-3 py-2.5">
+      <div className="mt-auto pt-6 space-y-2">
+        <ThemeToggle className="w-full justify-center" />
+        <div className="glass rounded-xl px-3 py-2.5">
           <div className="text-[13px] font-medium truncate">{user.full_name}</div>
           <div className="text-[11px] text-text-faint capitalize">{user.role}</div>
           <button
@@ -75,15 +104,25 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-full">
-      {/* Desktop rail */}
-      <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-line-soft bg-ground px-3 py-5 sticky top-0 h-screen">
-        {sidebar}
+      {/* Desktop rail. Translucent rather than solid: the ambient field
+          behind the app runs under it, so the rail reads as a pane over
+          the page instead of a separate dark column bolted to the side. */}
+      <aside
+        className="hidden md:flex w-60 shrink-0 flex-col px-3 py-5 sticky top-0 h-screen
+                   border-r border-[var(--glass-border)] backdrop-blur-xl"
+        style={{ background: "var(--glass-bg)" }}
+      >
+        {sidebar(true)}
       </aside>
 
       {/* Mobile header + drawer */}
-      <div className="md:hidden fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-line-soft bg-ground/95 backdrop-blur px-4 py-3">
+      <div
+        className="md:hidden fixed inset-x-0 top-0 z-30 flex items-center justify-between
+                   border-b border-[var(--glass-border)] backdrop-blur-xl px-4 py-3"
+        style={{ background: "var(--glass-bg-strong)" }}
+      >
         <div className="flex items-center gap-2">
-          <span className="h-6 w-6 rounded-md bg-gradient-to-br from-accent to-accent-deep" />
+          <Mark size={24} />
           <span className="font-bold text-[15px]">WorkWell AI</span>
         </div>
         <button
@@ -97,8 +136,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {navOpen && (
-        <div className="md:hidden fixed inset-0 z-20 bg-ground/98 flex flex-col px-3 pt-20 pb-6">
-          {sidebar}
+        <div
+          className="md:hidden fixed inset-0 z-20 flex flex-col px-3 pt-20 pb-6 backdrop-blur-2xl"
+          style={{ background: "rgb(var(--ground-rgb) / 0.92)" }}
+        >
+          {sidebar(false)}
         </div>
       )}
 
@@ -108,7 +150,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto w-full max-w-3xl px-4 md:px-8 pt-6 md:pt-10 pb-28">{children}</div>
       </main>
 
-      <AssistantBubble />
+      {/* Both are fixed, and the assistant sits above the drawer's layer -
+          so with the drawer open it floated over the navigation, on top of
+          the log-out card. It cannot go under the drawer either, because
+          the drawer has to stay below the header that closes it. */}
+      <div className={navOpen ? "hidden md:block" : undefined}>
+        <AssistantBubble />
+      </div>
     </div>
   );
 }

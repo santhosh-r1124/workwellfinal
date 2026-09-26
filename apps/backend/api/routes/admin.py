@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 
 from apps.backend.api.deps import get_db, require_role
 from apps.backend.models import User
-from apps.backend.services import admin_service, audit_service, integration_service
+from apps.backend.services import (
+    admin_service,
+    audit_service,
+    integration_service,
+    onboarding_service,
+)
 from shared.enums.roles import RoleName
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -72,6 +77,60 @@ class UserOut(BaseModel):
 
 class UserActiveUpdate(BaseModel):
     is_active: bool
+
+
+class UserCreate(BaseModel):
+    email: str = Field(max_length=200)
+    full_name: str = Field(default="", max_length=200)
+    role: str = Field(default="employee")
+    team: str | None = Field(default=None, max_length=100)
+
+
+class UserCreated(BaseModel):
+    id: str
+    email: str
+    role: str
+    password: str = Field(
+        description="Shown once and never stored in recoverable form. Hand it over; "
+        "they change it at Settings."
+    )
+
+
+@router.post("/users", response_model=UserCreated, status_code=201)
+def create_user(
+    payload: UserCreate, user: User = Depends(_admin_only), db: Session = Depends(get_db)
+):
+    """Add a colleague to this organisation.
+
+    A generated one-time password rather than an invite email, because
+    email delivery is optional in this product and an onboarding path
+    that silently depends on SMTP being configured is worse than one that
+    hands you a string. The same shape as a device token: shown once,
+    replaced by the recipient.
+    """
+    try:
+        person, password = onboarding_service.create_person(
+            db,
+            org_id=user.org_id,
+            email=payload.email,
+            full_name=payload.full_name,
+            role_name=payload.role,
+            team=payload.team,
+        )
+    except onboarding_service.OnboardingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    audit_service.record(
+        db,
+        actor_id=user.id,
+        subject_user_id=person.id,
+        action="admin.user_created",
+        resource=f"user:{person.id}",
+        # The password never reaches the audit log.
+        meta={"role": payload.role, "team": payload.team},
+    )
+
+    return UserCreated(id=person.id, email=person.email, role=payload.role, password=password)
 
 
 @router.get("/users")

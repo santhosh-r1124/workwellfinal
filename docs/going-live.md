@@ -220,6 +220,15 @@ works from a busy Tuesday.
 ## Order of operations
 
 ```bash
+# 0. an organisation, and real people in it
+python scripts/create_org.py --org "Your Company" --admin you@example.com
+#    then Administration -> People for everyone else; each gets a
+#    one-time password they change at Settings
+
+# 0b. if the demo fixtures were ever seeded here, remove them first -
+#     invented patterns must not share a database with real ones
+python scripts/purge_demo_data.py --confirm
+
 # 1. secrets
 cp .env.example .env            # set GEMINI_API_KEY, APP_SECRET_KEY,
                                 # POSTGRES_PASSWORD, CORS_ORIGINS,

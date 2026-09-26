@@ -8,6 +8,7 @@ from apps.backend.repositories import baseline_repo, telemetry_repo
 from ml.anomaly.pattern_builder import build_pattern_object
 from ml.baseline.baseline_engine import compute_baseline
 from ml.baseline.baseline_engine import deviation as baseline_deviation
+from shared.constants.wellbeing import BASELINE_MIN_DAYS
 
 TRACKED_METRICS = [
     "work_duration",
@@ -116,6 +117,34 @@ def recompute_baselines(db: Session, employee_id: str) -> dict:
     return pattern
 
 
+def _readiness(db: Session, employee_id: str, complete_days: int) -> dict:
+    """Which of three different situations the employee is actually in.
+
+    Before this, all three rendered as "no sustained deviation from your
+    baseline" - which reads as "we checked, you are fine" when nothing
+    had been measured at all.
+
+    The distinction between the first two matters on day one: complete
+    days exclude today, so an agent installed this morning has produced
+    real data and zero complete days. Telling that person "nothing is
+    reporting" would send them to debug an install that is working.
+    """
+    if complete_days >= BASELINE_MIN_DAYS:
+        state = "ready"
+    else:
+        recent = telemetry_repo.daily_features_history(db, employee_id, limit_days=90)
+        anything = any(
+            has_behavioral_data(telemetry_repo.daily_feature_to_dict(d)) for d in recent
+        )
+        state = "building" if anything else "no_data"
+
+    return {
+        "state": state,
+        "measured_days": complete_days,
+        "required_days": BASELINE_MIN_DAYS,
+    }
+
+
 def get_baseline_response(db: Session, employee_id: str) -> dict:
     rows = baseline_repo.list_baselines(db, employee_id)
 
@@ -148,6 +177,11 @@ def get_baseline_response(db: Session, employee_id: str) -> dict:
     as_of = current_dict.get("date")
     return {
         "employee_id": employee_id,
+        # Before this, a brand new employee was told "no sustained
+        # deviation from your baseline" - which reads as "we checked, you
+        # are fine" when the truth is that nothing has been measured yet.
+        # That is the screen everyone sees for their first week.
+        "readiness": _readiness(db, employee_id, complete_days=len(measured)),
         # Which day these readings are from. The dashboard says so out
         # loud rather than implying "now".
         "as_of": as_of.isoformat() if hasattr(as_of, "isoformat") else as_of,

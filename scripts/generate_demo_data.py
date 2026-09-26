@@ -7,6 +7,14 @@ Usage: python scripts/generate_demo_data.py
 
 Requires database/seeds/seed_demo.py to have been run first (creates the
 demo users this script writes telemetry for).
+
+**Never run this against a real deployment.** It writes invented work
+patterns against whatever user rows it finds, and a wellness product
+showing someone a pattern change that was made up by a random number
+generator is the single worst thing this repository could do. It refuses
+to run when APP_ENV is production, and refuses when the database holds
+users outside the demo organisation. Use scripts/create_org.py for a real
+install.
 """
 import sys
 from pathlib import Path
@@ -25,6 +33,32 @@ from apps.backend.services import baseline_service, telemetry_service
 from shared.enums.data_sources import DataSourceKey
 
 random.seed(42)
+
+DEMO_EMAIL_DOMAIN = "@demo.workwell.ai"
+
+
+def _refuse_if_this_is_real(db) -> None:
+    from sqlalchemy import func, select
+
+    from apps.backend.core.config import get_settings
+    from apps.backend.models import User
+
+    if get_settings().is_production:
+        raise SystemExit(
+            "refusing to write synthetic telemetry: APP_ENV is production.\n"
+            "Real people would be shown invented work patterns."
+        )
+
+    real = db.scalar(
+        select(func.count(User.id)).where(~User.email.ilike(f"%{DEMO_EMAIL_DOMAIN}"))
+    )
+    if real:
+        raise SystemExit(
+            f"refusing to write synthetic telemetry: this database holds {real} account(s) "
+            f"outside the demo organisation.\n"
+            "Synthetic patterns must never be mixed with real ones - a dashboard cannot "
+            "tell the reader which is which."
+        )
 
 TOTAL_DAYS = 30
 START_DATE = date.today() - timedelta(days=TOTAL_DAYS)
@@ -215,6 +249,8 @@ def _enable_demo_consents(db, employee_id: str) -> None:
 def generate() -> None:
     db = SessionLocal()
     try:
+        _refuse_if_this_is_real(db)
+
         for employee_id, pattern in PATTERNS.items():
             _enable_demo_consents(db, employee_id)
 

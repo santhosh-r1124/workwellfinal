@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../api/client";
+import BaselineProgress from "../components/BaselineProgress";
 import CheckIn from "../components/CheckIn";
 import Explainability from "../components/Explainability";
 import InterventionCard from "../components/InterventionCard";
@@ -107,6 +108,8 @@ export default function Dashboard() {
   // is reading, so it reloads without the spinner.
   const live = useLiveRefresh(() => loadAll(false), Boolean(user));
 
+  const readiness = baseline?.readiness;
+  const ready = readiness?.state === "ready";
   const latest = patterns[patterns.length - 1];
   const open = interventions.filter((i) => i.type !== "no_action");
   const changed = latest && latest.state !== "STABLE";
@@ -183,42 +186,54 @@ export default function Dashboard() {
         </section>
       )}
 
+      {/* Before a baseline exists there is nothing to compare against, so
+          the analytical panels below would be furniture around zeros - and
+          "no sustained deviation from your baseline" would be a claim about
+          a baseline that does not exist. */}
+      {readiness && !ready && <BaselineProgress readiness={readiness} />}
+
       <CheckIn />
 
-      <section className="mb-7">
-        <h2 className="eyebrow mb-2.5">Signals</h2>
-        <div className="panel px-5 py-4">
-          {baseline &&
-            DIMENSIONS.map((d) => {
-              const m = baseline.metrics[d.metric];
-              if (!m) return null;
-              return (
-                <MetricBar
-                  key={d.metric}
-                  label={d.label}
-                  current={m.current}
-                  baseline={m.baseline}
-                  unit={d.unit}
-                  history={seriesFor(d.series)}
-                />
-              );
-            })}
-          {!baseline && !loading && (
-            <p className="text-text-muted text-[13px] py-2">
-              Building your baseline — check back after a few days of activity.
-            </p>
-          )}
-          {baseline && (
-            <div className="flex justify-between pt-3 mt-1 font-mono text-[10px] text-text-faint">
-              <span>0</span>
-              <span>your norm</span>
-              <span>2×</span>
+      {ready && (
+        <>
+          <section className="mb-7">
+            <h2 className="eyebrow mb-2.5">Signals</h2>
+            <div className="panel px-5 py-4">
+              {baseline &&
+                DIMENSIONS.map((d) => {
+                  const m = baseline.metrics[d.metric];
+                  if (!m) return null;
+                  return (
+                    <MetricBar
+                      key={d.metric}
+                      label={d.label}
+                      current={m.current}
+                      baseline={m.baseline}
+                      unit={d.unit}
+                      history={seriesFor(d.series)}
+                    />
+                  );
+                })}
+              <div className="flex justify-between pt-3 mt-1 font-mono text-[10px] text-text-faint">
+                <span>0</span>
+                <span>your norm</span>
+                <span>2×</span>
+              </div>
             </div>
-          )}
-        </div>
-      </section>
+          </section>
 
-      <Explainability signals={latest?.signals || []} dataNotUsed={NEVER_COLLECTED} />
+          <Explainability signals={latest?.signals || []} dataNotUsed={NEVER_COLLECTED} />
+        </>
+      )}
+
+      {/* The one thing worth showing from day one: what is never collected,
+          whatever state the analysis is in. */}
+      {!ready && (
+        <section className="panel p-5">
+          <h2 className="eyebrow mb-1.5">Data not used</h2>
+          <p className="text-[12px] text-text-faint">{NEVER_COLLECTED.join(" · ")}</p>
+        </section>
+      )}
     </>
   );
 }

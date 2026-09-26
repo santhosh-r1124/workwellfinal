@@ -226,3 +226,81 @@ def test_an_employee_on_utc_is_unaffected(db_session, org):
 
     response = baseline_service.get_baseline_response(db_session, employee.id)
     assert response["as_of"] == (date.today() - timedelta(days=1)).isoformat()
+
+
+def test_an_employee_with_nothing_is_told_nothing_is_reporting(db_session, org):
+    """Not "no sustained deviation from your baseline" - that reads as
+    "we checked, you are fine" when nothing has been measured at all."""
+    from apps.backend.services import baseline_service
+
+    employee = make_user(db_session, org, "employee", "ready_none", "ready_none@example.com")
+
+    readiness = baseline_service.get_baseline_response(db_session, employee.id)["readiness"]
+
+    assert readiness["state"] == "no_data"
+    assert readiness["measured_days"] == 0
+
+
+def test_an_agent_installed_this_morning_reads_as_building_not_missing(db_session, org):
+    """Complete days exclude today, so a working install has real data and
+    zero complete days. Telling that person nothing is reporting sends
+    them to debug something that works."""
+    from datetime import date
+
+    from apps.backend.models import DailyFeature
+    from apps.backend.services import baseline_service
+    from tests.factories import stable_day
+
+    employee = make_user(db_session, org, "employee", "ready_today", "ready_today@example.com")
+    db_session.add(DailyFeature(employee_id=employee.id, date=date.today(), **stable_day(0)))
+    db_session.commit()
+
+    readiness = baseline_service.get_baseline_response(db_session, employee.id)["readiness"]
+
+    assert readiness["state"] == "building"
+    assert readiness["measured_days"] == 0
+
+
+def test_a_part_built_baseline_reports_its_progress(db_session, org):
+    from datetime import date, timedelta
+
+    from apps.backend.models import DailyFeature
+    from apps.backend.services import baseline_service
+    from tests.factories import stable_day
+
+    employee = make_user(db_session, org, "employee", "ready_part", "ready_part@example.com")
+    for i in range(3):
+        db_session.add(
+            DailyFeature(
+                employee_id=employee.id, date=date.today() - timedelta(days=i + 1), **stable_day(i)
+            )
+        )
+    db_session.commit()
+
+    readiness = baseline_service.get_baseline_response(db_session, employee.id)["readiness"]
+
+    assert readiness["state"] == "building"
+    assert readiness["measured_days"] == 3
+    assert readiness["required_days"] == 7
+
+
+def test_enough_history_reads_as_ready(db_session, org):
+    from datetime import date, timedelta
+
+    from apps.backend.models import DailyFeature
+    from apps.backend.services import baseline_service
+    from tests.factories import stable_day
+
+    employee = make_user(db_session, org, "employee", "ready_yes", "ready_yes@example.com")
+    for i in range(10):
+        db_session.add(
+            DailyFeature(
+                employee_id=employee.id, date=date.today() - timedelta(days=i + 1), **stable_day(i)
+            )
+        )
+    db_session.commit()
+
+    readiness = baseline_service.get_baseline_response(db_session, employee.id)["readiness"]
+
+    assert readiness["state"] == "ready"
+    assert readiness["measured_days"] == 10

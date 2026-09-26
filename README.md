@@ -32,7 +32,36 @@ The pipeline runs **on a schedule, not on demand**. A background worker
 when there is something waiting. That distinction is the product: an
 early-warning system that only warns the people who think to ask is not one.
 
-## Quick start
+## Running it for real
+
+```bash
+cp .env.example .env          # set GEMINI_API_KEY (free tier is fine)
+docker compose up --build
+docker compose exec backend alembic -c database/migrations/alembic.ini upgrade head
+docker compose exec backend python scripts/create_org.py \
+    --org "Your Company" --admin you@yourcompany.example
+```
+
+That prints a generated password, once. Sign in, change it under your
+profile, then add people from **Administration → People** — each gets their
+own one-time password. Everyone installs the desktop agent and registers
+their own device from **Privacy Centre → Your devices**.
+
+Nobody sees an analysis until their own baseline has seven days of their
+own data. That first quiet week is the product working, not failing, and
+the dashboard says so rather than pretending to have checked.
+
+If you lose the only admin password, `scripts/reset_password.py
+--list-admins` and then `--email` is the break-glass; it needs database
+access, which is the authorisation.
+
+Full credential list and the two traps on the way to live:
+[docs/going-live.md](docs/going-live.md).
+
+## Looking at it first, with synthetic data
+
+There is a seeded demo org with five archetypes, for evaluating the
+product before committing real people to it:
 
 ```bash
 git clone <repository>
@@ -86,6 +115,24 @@ from *their own* baseline is correctly left alone, which is the whole point of p
 baselines over population comparisons.
 
 Password for every seeded account: `workwell-demo`.
+
+**This data is invented.** `scripts/generate_demo_data.py` produces thirty
+days of telemetry from a seeded random number generator, and a wellness
+product showing someone a "pattern change" that was made up is the worst
+thing this repository could do. So it refuses to run when `APP_ENV` is
+production, and refuses when the database holds any account outside the
+demo organisation — synthetic and real patterns must never sit in one
+database, because no screen can tell the reader which is which.
+
+Before going live, remove it:
+
+```bash
+python scripts/purge_demo_data.py            # show what would go
+python scripts/purge_demo_data.py --confirm
+```
+
+Scoped by email domain, so a database that already holds real accounts
+keeps them.
 
 ## Local development without Docker
 
@@ -325,6 +372,7 @@ GET  /me/history                         GET/PATCH /me/preferences
 GET  /me/interventions                   POST /me/interventions/{id}/respond
 GET/POST /me/devices                     DELETE /me/devices/{id}
 GET  /me/status                          GET  /me/connectors
+POST /me/password
 PUT/DELETE /me/connectors/{key}          POST /me/connectors/{key}/sync
 GET/POST /me/self-report
 
@@ -335,7 +383,7 @@ GET  /analytics/teams                    GET  /analytics/teams/{team}
 GET/PATCH /admin/settings                GET  /admin/audit-logs
 GET  /admin/data-sources                 GET  /admin/integrations
 GET  /admin/knowledge-base               POST /admin/retention/apply
-GET  /admin/users                        PATCH /admin/users/{id}
+GET/POST /admin/users                    PATCH /admin/users/{id}
 ```
 
 Full interactive docs at `/docs` once the backend is running.

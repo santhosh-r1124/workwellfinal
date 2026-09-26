@@ -12,8 +12,17 @@ export interface MetricBaseline {
   window_days: number;
 }
 
+export interface BaselineReadiness {
+  /** no_data: nothing is reporting. building: some days, not enough.
+   *  ready: a usable baseline exists. */
+  state: "no_data" | "building" | "ready";
+  measured_days: number;
+  required_days: number;
+}
+
 export interface BaselineResponse {
   employee_id: string;
+  readiness: BaselineReadiness;
   /** The day these readings come from - the most recent one that is both
    *  measured and over. Null when there is nothing usable yet. */
   as_of: string | null;

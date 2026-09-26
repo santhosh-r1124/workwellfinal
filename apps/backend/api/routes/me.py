@@ -14,10 +14,12 @@ from sqlalchemy.orm import Session
 
 from apps.backend.api.deps import get_current_user, get_db
 from apps.backend.core import timezones
+from apps.backend.core.security import hash_password, verify_password
 from apps.backend.models import SelfReport, User
 from apps.backend.repositories import agent_repo, telemetry_repo
 from apps.backend.services import (
     analysis_service,
+    audit_service,
     connector_service,
     device_service,
     telemetry_service,
@@ -118,6 +120,40 @@ def revoke_device(
 ):
     if not device_service.revoke(db, device_id, user.id):
         raise HTTPException(status_code=404, detail="Device not found")
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    # Long rather than complex: length is what actually resists guessing,
+    # and character-class rules mostly produce Password1!.
+    new_password: str = Field(min_length=12, max_length=200)
+
+
+@router.post("/password", status_code=204)
+def change_password(
+    payload: PasswordChange,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Without this, an account created by an admin is stuck on a password
+    that admin has seen - which is most accounts, since that is how people
+    get added."""
+    if not verify_password(payload.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if payload.new_password == payload.current_password:
+        raise HTTPException(status_code=400, detail="That is the current password")
+
+    user.hashed_password = hash_password(payload.new_password)
+    db.commit()
+
+    audit_service.record(
+        db,
+        actor_id=user.id,
+        subject_user_id=user.id,
+        action="auth.password_changed",
+        resource=f"user:{user.id}",
+        meta={},
+    )
 
 
 @router.get("/status")

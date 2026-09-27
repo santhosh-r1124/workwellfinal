@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import ConnectorList from "../components/ConnectorList";
 import DeviceList from "../components/DeviceList";
+import { ErrorState } from "../components/LoadState";
 import PageHeader from "../components/PageHeader";
 import Toggle from "../components/Toggle";
 import type { DataSourceInfo } from "../types";
@@ -21,9 +22,20 @@ export default function PrivacyCenter() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<boolean | null>(null);
   const [timezone, setTimezone] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [changeFailed, setChangeFailed] = useState<string | null>(null);
 
+  // Neither of these had a catch. On this screen in particular that is not
+  // a cosmetic gap: a failed fetch rendered an empty list, which reads as
+  // "nothing is being collected", and a failed toggle left the old switch
+  // position on screen - so someone who turned a source off and was not
+  // told it failed would believe collection had stopped.
   const load = () => {
-    api.getConsent().then(setSources);
+    setLoadFailed(false);
+    api
+      .getConsent()
+      .then(setSources)
+      .catch(() => setLoadFailed(true));
   };
 
   useEffect(() => {
@@ -42,9 +54,12 @@ export default function PrivacyCenter() {
     // there is nothing to turn off: the server already reports them off.
     if (!source.collectible || source.org_disabled) return;
     setBusy(source.key);
+    setChangeFailed(null);
     try {
       await api.patchConsent(source.key, !source.enabled);
       load();
+    } catch {
+      setChangeFailed(source.label ?? source.key);
     } finally {
       setBusy(null);
     }
@@ -70,6 +85,21 @@ export default function PrivacyCenter() {
         title="Privacy centre"
         subtitle="Control exactly what WorkWell collects. Turning something off stops it being collected, not just hidden."
       />
+
+      {loadFailed && (
+        <ErrorState
+          message="Couldn't load your consent settings. This screen is not showing what is currently being collected — don't take an empty list as an answer."
+          onRetry={load}
+          className="mb-6"
+        />
+      )}
+
+      {changeFailed && (
+        <ErrorState
+          message={`"${changeFailed}" did not change. What you see below is still what the server has — nothing was turned on or off.`}
+          className="mb-6"
+        />
+      )}
 
       <div className="space-y-2 mb-8">
         {collectible.map((s) => (

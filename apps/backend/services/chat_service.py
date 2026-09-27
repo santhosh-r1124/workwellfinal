@@ -20,6 +20,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from agents import context_agent, safety_agent, wellness_agent
+from agents.narration import generates_text
 from agents.providers import get_provider
 from apps.backend.models import ChatMessage, ChatSession
 from apps.backend.services import analysis_service
@@ -80,6 +81,16 @@ def _answer_from_analysis(db: Session, employee_id: str, message: str) -> tuple[
     return wellness["recommendation"], wellness.get("sources", []), degraded
 
 
+def _degraded_reason(degraded: bool) -> str | None:
+    """Both situations produce evidence-derived text instead of prose, but
+    only one of them is a fault. Telling someone the model was unreachable
+    on an install that was deliberately run without one sends them to debug
+    nothing."""
+    if not degraded:
+        return None
+    return "not_configured" if not generates_text(get_provider()) else "unreachable"
+
+
 def handle_message(db: Session, employee_id: str, session_id: str | None, message: str) -> dict:
     session = get_or_create_session(db, employee_id, session_id)
 
@@ -113,4 +124,5 @@ def handle_message(db: Session, employee_id: str, session_id: str | None, messag
         "sources": sources,
         "safety_flagged": safety_result["flagged"],
         "degraded": degraded,
+        "degraded_reason": _degraded_reason(degraded),
     }

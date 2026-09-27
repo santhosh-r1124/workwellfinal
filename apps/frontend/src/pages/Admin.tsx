@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
 import Toggle from "../components/Toggle";
+import { friendlyError } from "../lib/errors";
 import type { AuditLogEntry, OrgSettings, OrgUser } from "../types";
 
 interface Connector {
@@ -23,7 +24,7 @@ export default function Admin() {
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
-    api.getAdminSettings().then(setSettings).catch((e) => setError(String(e)));
+    api.getAdminSettings().then(setSettings).catch((e) => setError(friendlyError(e, "Couldn't load organisation settings.")));
     api.getAuditLogs().then((r) => setLogs(r.logs)).catch(() => undefined);
     api.getAdminDataSources().then((r) => setSources(r.data_sources)).catch(() => undefined);
     api.getIntegrations().then((r) => setConnectors(r.connectors)).catch(() => undefined);
@@ -38,7 +39,7 @@ export default function Admin() {
       setSettings(await api.updateAdminSettings(patch));
       setStatus("Saved.");
     } catch (e) {
-      setError(String(e));
+      setError(friendlyError(e, "Couldn't save that setting."));
     }
   };
 
@@ -54,7 +55,7 @@ export default function Admin() {
       );
       load();
     } catch (e) {
-      setError(String(e));
+      setError(friendlyError(e, "Couldn't update that person."));
     }
   };
 
@@ -67,7 +68,7 @@ export default function Admin() {
       );
       load();
     } catch (e) {
-      setError(String(e));
+      setError(friendlyError(e, "Couldn't apply the retention policy."));
     }
   };
 

@@ -21,12 +21,19 @@ export default function InterventionCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [rated, setRated] = useState(false);
+  const [failed, setFailed] = useState(false);
 
+  // Both handlers used try/finally with no catch, so a failed request
+  // simply re-enabled the buttons: the card looked as though the answer
+  // had been recorded when nothing had been sent.
   const act = async (status: string) => {
     setBusy(true);
+    setFailed(false);
     try {
       await api.respondToIntervention(intervention.id, status);
       onChange();
+    } catch {
+      setFailed(true);
     } finally {
       setBusy(false);
     }
@@ -34,9 +41,12 @@ export default function InterventionCard({
 
   const rate = async (rating: number) => {
     setBusy(true);
+    setFailed(false);
     try {
       await api.submitInterventionFeedback(intervention.id, rating);
       setRated(true);
+    } catch {
+      setFailed(true);
     } finally {
       setBusy(false);
     }
@@ -72,6 +82,12 @@ export default function InterventionCard({
             Not useful
           </button>
         </div>
+      )}
+
+      {failed && (
+        <p role="alert" className="text-[12.5px] text-attention mt-2.5">
+          That didn't go through. Nothing was recorded — try again.
+        </p>
       )}
 
       {answered && !rated && (

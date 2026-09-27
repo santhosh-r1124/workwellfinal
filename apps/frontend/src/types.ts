@@ -130,6 +130,7 @@ export interface ChatMessage {
   sources?: ChatSource[];
   /** The reply is a deterministic fallback, not model text. */
   degraded?: boolean;
+  degradedReason?: DegradedReason | null;
 }
 
 export interface TeamMetricChange {
@@ -199,6 +200,11 @@ export interface AuditLogEntry {
 
 /** A seeded fixture account, if this deployment still has any. Empty on
  *  anything running on real data - see GET /auth/demo-accounts. */
+/** Why a reply is evidence-derived rather than written by a model.
+ *  "not_configured" is a deployment choice, "unreachable" is a fault -
+ *  they read very differently to whoever is looking at the screen. */
+export type DegradedReason = "not_configured" | "unreachable";
+
 export interface DemoAccount {
   email: string;
   role: string;

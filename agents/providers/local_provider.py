@@ -11,6 +11,11 @@ class LocalProvider:
     demoable without live model access. Text is templated, not generated;
     embeddings are a normalized hash projection, not semantically meaningful."""
 
+    # Nothing here writes a sentence. Callers use this to tell an employee
+    # "no explanation is available" instead of showing them the string
+    # below, which is a note to whoever deployed this.
+    generates_text = False
+
     def generate(self, prompt: str, system: str | None = None) -> str:
         return (
             "[local-mode explanation] The statistical evidence above was computed "

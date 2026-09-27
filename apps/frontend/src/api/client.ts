@@ -5,6 +5,7 @@ import type {
   DailyHistoryPoint,
   ConnectorInfo,
   DataSourceInfo,
+  DegradedReason,
   DemoAccount,
   Device,
   DeviceCreated,
@@ -69,6 +70,7 @@ export const api = {
       sources: ChatMessage["sources"];
       safety_flagged: boolean;
       degraded?: boolean;
+      degraded_reason?: DegradedReason | null;
     }>("/chat", {
       method: "POST",
       body: JSON.stringify({ employee_id: "", session_id: sessionId, message }),

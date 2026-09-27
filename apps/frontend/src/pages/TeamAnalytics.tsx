@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
+import { friendlyError } from "../lib/errors";
 import type { TeamAnalytics as TeamAnalyticsData } from "../types";
 
 export default function TeamAnalytics() {
@@ -17,12 +18,12 @@ export default function TeamAnalytics() {
         setTeams(res.teams);
         if (res.teams.length > 0) setSelected(res.teams[0]);
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(friendlyError(e, "Couldn't load your teams.")));
   }, []);
 
   useEffect(() => {
     if (!selected) return;
-    api.teamAnalytics(selected).then(setData).catch((e) => setError(String(e)));
+    api.teamAnalytics(selected).then(setData).catch((e) => setError(friendlyError(e, "Couldn't load team analytics.")));
   }, [selected]);
 
   const entries = data ? Object.entries(data.metrics) : [];

@@ -176,6 +176,10 @@ class ResilientProvider:
         self._base = base_backoff_seconds
         self._limiter = RateLimiter(requests_per_minute, max_wait_seconds)
 
+    @property
+    def generates_text(self) -> bool:
+        return bool(getattr(self._inner, "generates_text", True))
+
     def _call(self, fn, *args, **kwargs):
         last: Exception | None = None
 

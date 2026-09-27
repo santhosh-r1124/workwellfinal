@@ -19,6 +19,13 @@ class InstrumentedProvider:
         self._inner = inner
         self._name = name
 
+    @property
+    def generates_text(self) -> bool:
+        """Wrappers must not hide what the inner provider can do - the
+        factory returns a wrapped provider, so a flag that stopped here
+        would always read as True."""
+        return bool(getattr(self._inner, "generates_text", True))
+
     def _timed(self, fn: Callable, *args, **kwargs):
         start = time.perf_counter()
         failed = False

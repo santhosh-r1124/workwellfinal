@@ -20,3 +20,9 @@ class ChatMessageOut(BaseModel):
     # True when the reply is a deterministic fallback rather than model text,
     # so the UI can be honest about which one the employee is reading.
     degraded: bool = False
+    # Which kind of fallback, because the two need different words. An
+    # employee told "the model was unreachable" on a deployment that was
+    # never given a key would go looking for an outage that does not exist.
+    #   "not_configured" - no model is configured at all
+    #   "unreachable"    - a model is configured and did not answer
+    degraded_reason: str | None = None

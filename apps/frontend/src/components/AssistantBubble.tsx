@@ -58,6 +58,7 @@ export default function AssistantBubble() {
           content: res.reply,
           sources: res.sources || [],
           degraded: res.degraded,
+          degradedReason: res.degraded_reason,
         },
       ]);
     } catch {
@@ -117,7 +118,9 @@ export default function AssistantBubble() {
                 <p className="whitespace-pre-wrap">{m.content}</p>
                 {m.degraded && (
                   <p className="mt-2 pt-2 border-t border-line-soft text-[11px] text-attention">
-                    Written from the measured evidence — the language model was unreachable.
+                    {m.degradedReason === "not_configured"
+                      ? "Written from the measured evidence. No language model is configured on this deployment, so nothing here was generated."
+                      : "Written from the measured evidence — the language model could not be reached."}
                   </p>
                 )}
                 {m.sources && m.sources.length > 0 && (

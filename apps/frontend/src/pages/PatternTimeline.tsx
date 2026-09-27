@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../api/client";
+import { EmptyState, ErrorState, Skeleton } from "../components/LoadState";
 import PageHeader from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { formatChange, signalLabel } from "../lib/formatSignal";
@@ -16,14 +17,27 @@ const STATE_LABEL: Record<string, string> = {
 
 export default function PatternTimeline() {
   const { user } = useAuth();
-  const [patterns, setPatterns] = useState<PatternRecord[]>([]);
+  const [patterns, setPatterns] = useState<PatternRecord[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
+  // Before this the request had no catch at all, so a failure left the
+  // empty state on screen: "No pattern history yet" is reassuring, and
+  // "we could not reach the server" is not. They must not look the same.
+  const load = useCallback(() => {
     if (!user) return;
-    api.getPatterns(user.id).then((res) => setPatterns(res.patterns));
+    setFailed(false);
+    api
+      .getPatterns(user.id)
+      .then((res) => setPatterns(res.patterns))
+      .catch(() => {
+        setPatterns(null);
+        setFailed(true);
+      });
   }, [user]);
 
-  const ordered = patterns.slice().reverse();
+  useEffect(load, [load]);
+
+  const ordered = (patterns ?? []).slice().reverse();
 
   return (
     <>
@@ -32,6 +46,23 @@ export default function PatternTimeline() {
         subtitle="A single unusual day is normal variation. Five consecutive days is a pattern."
       />
 
+      {failed && (
+        <ErrorState
+          message="Couldn't load your pattern history just now."
+          onRetry={load}
+          className="mb-4"
+        />
+      )}
+
+      {patterns === null && !failed && <Skeleton rows={4} />}
+
+      {patterns !== null && ordered.length === 0 && (
+        <EmptyState title="No pattern history yet">
+          This fills in once there are enough measured days to compare against. Nothing is wrong.
+        </EmptyState>
+      )}
+
+      {ordered.length > 0 && (
       <div className="panel overflow-hidden">
         {ordered.map((p, i) => {
           const changed = p.state !== "STABLE";
@@ -71,12 +102,8 @@ export default function PatternTimeline() {
           );
         })}
 
-        {patterns.length === 0 && (
-          <p className="px-5 py-8 text-center text-[13px] text-text-muted">
-            No pattern history yet — this fills in as your baseline builds.
-          </p>
-        )}
       </div>
+      )}
 
       <p className="text-[12px] text-text-faint mt-4">
         The detector deliberately resists smooth, gradual drift: a robust median/MAD baseline adapts

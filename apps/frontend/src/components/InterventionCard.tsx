@@ -20,7 +20,11 @@ export default function InterventionCard({
   onChange: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [rated, setRated] = useState(false);
+  // Seeded from the server: a suggestion the employee already rated has
+  // closed the loop and must not re-prompt "how useful was this?" on every
+  // reload. Local state after that, because a rating just given this session
+  // need not round-trip before the thanks line shows.
+  const [rated, setRated] = useState(intervention.has_feedback);
   const [failed, setFailed] = useState(false);
 
   // Both handlers used try/finally with no catch, so a failed request

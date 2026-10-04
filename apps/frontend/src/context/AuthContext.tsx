@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 import { api } from "../api/client";
+import { credentialsAreDemo, disableDemo, enableDemo } from "../api/demo";
 
 interface AuthUser {
   id: string;
@@ -53,6 +54,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
+    // Demo mode: the fixed demo credentials switch the whole app over to
+    // sample data with no backend. Any other credentials take the real path.
+    if (credentialsAreDemo(email, password)) {
+      enableDemo();
+    } else {
+      disableDemo();
+    }
     const res = await api.login(email, password);
     localStorage.setItem("workwell_token", res.access_token);
     const me = await api.me();
@@ -62,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem("workwell_token");
+    disableDemo();
     setUser(null);
   };
 

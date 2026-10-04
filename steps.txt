@@ -1,0 +1,265 @@
+===============================================================================
+ WorkWell AI — STEPS TO GO LIVE (real data, not the demo)
+ Written for: Windows 11, this machine, after a fresh laptop reset.
+ Last updated: 2026-10-04
+===============================================================================
+
+This file is a checklist. Do the sections in order. Sections 0–2 are one-time
+setup. Section 3 is "look at it". Sections 4–7 are the actual go-live.
+
+Legend:  [DONE] already done for you    [YOU] you must do this    [OPTIONAL]
+
+
+-------------------------------------------------------------------------------
+ 0. WHAT IS ALREADY INSTALLED  [DONE]
+-------------------------------------------------------------------------------
+Installed on this machine already — you do NOT need to redo these:
+  - Git 2.55
+  - Python 3.12.10
+  - Node.js 24.19 + npm 11.17
+  - Docker Desktop 4.93   (installed, but NOT yet usable — see section 1)
+  - Python venv at  .venv\  with all backend dependencies
+  - Frontend packages in  apps\frontend\node_modules\
+  - .env file created (your API key is blank on purpose — see section 4)
+
+
+-------------------------------------------------------------------------------
+ 1. ENABLE DOCKER'S ENGINE (WSL2) — REQUIRES A REBOOT  [YOU]
+-------------------------------------------------------------------------------
+Docker Desktop cannot run until Windows' WSL2 feature is on. This needs admin
+rights and a restart.
+
+  1. Click Start, type "PowerShell", right-click -> "Run as administrator".
+  2. Run:
+         wsl --install --no-distribution
+  3. RESTART Windows.
+  4. After reboot, open "Docker Desktop" from the Start menu.
+     - Accept the license/service agreement the first time.
+     - Wait until the whale icon in the system tray stops animating
+       (it says "Docker Desktop is running").
+  5. Confirm it works — open a normal PowerShell and run:
+         docker --version
+         docker compose version
+     Both should print a version with no error.
+
+If `wsl --install` says it needs a feature, let it enable it, reboot, and run
+Docker Desktop again. You only ever do this once.
+
+
+-------------------------------------------------------------------------------
+ 2. (NOTHING TO DO) DEPENDENCIES  [DONE]
+-------------------------------------------------------------------------------
+Already handled in section 0. Skip.
+
+
+-------------------------------------------------------------------------------
+ 3. SEE THE UI RIGHT NOW (before Docker)  [YOU - optional preview]
+-------------------------------------------------------------------------------
+The frontend can be viewed without the backend, but you can only see the
+LOGIN page and the theme — you cannot log in or see the dashboard until the
+backend is running (section 5), because login needs the database.
+
+To view it:
+     cd "E:\Personal Projects\work_well_ai\apps\frontend"
+     npm run dev
+Then open:  http://localhost:3000
+Press Ctrl+C in that window to stop it.
+
+The three NEW features (pulse trend, support resources, intervention
+follow-up) only appear once you are logged in with real data, i.e. after
+section 5–6.
+
+
+-------------------------------------------------------------------------------
+ 4. THE API KEY TO ADD  [YOU]
+-------------------------------------------------------------------------------
+You need EXACTLY ONE external API key, and it has a FREE tier: Google Gemini.
+Everything else (database, cache) is self-hosted by Docker — no key, no cost.
+
+  A. Get a free Gemini key:
+       - Go to:  https://aistudio.google.com/apikey   (or https://ai.google.dev)
+       - Sign in with a Google account -> "Get API key" / "Create API key".
+       - Copy the key (looks like: AIza....).
+
+  B. Open this file in a text editor:
+       E:\Personal Projects\work_well_ai\.env
+     Find the line:
+       GEMINI_API_KEY=
+     and paste your key after the = so it reads:
+       GEMINI_API_KEY=AIza....your-key....
+     Save the file.
+
+  That is the only key required.
+
+  --- If you want to run with NO key at all (still fully works) ---
+  Change this line in .env:
+       AI_PROVIDER=gemini      ->      AI_PROVIDER=local
+  In "local" mode every NUMBER on the dashboard is still real and computed;
+  only the written explanations become fixed canned sentences instead of
+  AI-written ones. This is a supported mode, not a broken one.
+  NOTE: leaving AI_PROVIDER=gemini with a BLANK key is the ONE combination
+  that refuses to start on purpose. So: either add a key, or set local.
+
+  --- Keys you do NOT need for a free live setup ---
+  - Database / Redis: none. Docker runs them locally.
+  - Desktop agent: none. Each laptop generates its own token in the app
+    (Privacy Centre -> Your devices).
+  - Calendar: none. The employee pastes their own private ICS URL.
+  - Microsoft 365 / Slack / Jira / GitHub: these need an OAuth "app
+    registration" in your company tenant, NOT a key. They are optional and
+    add context only — the detection works fully without them. Leave them
+    alone for now.
+
+  [OPTIONAL] Email notifications (so staff get "a suggestion is waiting"):
+    In .env, set NOTIFICATION_CHANNEL=smtp and fill:
+       SMTP_HOST=  SMTP_PORT=587  SMTP_USER=  SMTP_PASSWORD=  SMTP_FROM=
+    A free option is a Gmail account with an "App Password". If you skip
+    this, leave NOTIFICATION_CHANNEL=log (the default) — the app still runs,
+    it just logs notifications instead of emailing them.
+
+
+-------------------------------------------------------------------------------
+ 5. BRING THE WHOLE APP UP (live, with Docker)  [YOU]
+-------------------------------------------------------------------------------
+Do this AFTER sections 1 and 4. Open PowerShell in the project folder:
+
+     cd "E:\Personal Projects\work_well_ai"
+
+  1. Check the config is sane (no Docker needed for this):
+         .\.venv\Scripts\python.exe scripts\preflight.py
+     Expect it to pass. If it complains the key is missing, finish section 4.
+
+  2. Start the five containers (postgres, redis, backend, worker, frontend):
+         docker compose up --build
+     Leave this window running. First build takes a few minutes.
+
+  3. In a SECOND PowerShell window, create the database tables:
+         cd "E:\Personal Projects\work_well_ai"
+         docker compose exec backend alembic -c database/migrations/alembic.ini upgrade head
+
+  4. Prove your Gemini key actually works (only if AI_PROVIDER=gemini):
+         docker compose exec backend python scripts/smoke_provider.py
+     This makes a REAL call and tells you which worked. Important: a wrong
+     key does NOT crash the app — it silently falls back to canned text — so
+     this is the only way to know the AI path is really on.
+
+  App URLs once it is up:
+     Frontend:  http://localhost:3000
+     Backend:   http://localhost:8000
+     API docs:  http://localhost:8000/docs
+
+  To stop everything:  press Ctrl+C in the first window, then  docker compose down
+
+
+-------------------------------------------------------------------------------
+ 6. MAKE IT REAL DATA, NOT DEMO/STATIC DATA  [YOU]  <-- the important part
+-------------------------------------------------------------------------------
+The "demo" accounts (employee.a@demo.workwell.ai etc.) use INVENTED data from
+a random generator. For a live product you must NOT use them. Do this instead:
+
+  6.1  Create YOUR real organisation and admin account:
+         docker compose exec backend python scripts/create_org.py `
+             --org "Your Company Name" --admin you@yourcompany.com
+       This prints a generated admin password ONCE. Copy it now.
+
+  6.2  Log in at http://localhost:3000/login with that email + password.
+       Change the password under your profile/Settings.
+
+  6.3  Add real people:  Administration -> People -> add each colleague.
+       Each gets their own one-time password to change on first login.
+
+  6.4  IF you ever ran the demo seed on this database, remove the fake data
+       (it must never share a database with real data):
+         docker compose exec backend python scripts/purge_demo_data.py            # preview
+         docker compose exec backend python scripts/purge_demo_data.py --confirm  # delete
+       (If you never seeded demo data, you can skip this.)
+       IMPORTANT: do NOT run scripts/generate_demo_data.py on a live system —
+       it writes synthetic telemetry and refuses to run in production anyway.
+
+  6.5  Embed the wellness knowledge base WITH YOUR REAL KEY (do this AFTER the
+       key is set, or retrieval returns wrong results):
+         docker compose exec backend python scripts/ingest_knowledge.py
+
+  6.6  Get REAL activity data flowing (this is what replaces static data):
+       On each person's own laptop:
+         a) In the web app:  Privacy Centre -> Your devices -> register a
+            device. It shows a one-time token + the employee id.
+         b) Install the collector on that laptop:
+              pip install -r apps/desktop-agent/requirements.txt
+            Set these environment variables (or the agent's config), using the
+            token/id from step (a):
+              WORKWELL_BACKEND_URL=http://localhost:8000
+              WORKWELL_AGENT_TOKEN=wwd_...        (shown once)
+              WORKWELL_EMPLOYEE_ID=...            (shown next to the token)
+              WORKWELL_REPORT_INTERVAL_SECONDS=300
+            Then run it:
+              python apps/desktop-agent/main.py
+         c) First check per OS that collectors work (they fail silently
+            otherwise):
+              python apps/desktop-agent/selftest.py
+       The agent posts every 5 minutes and the day's data updates live.
+
+  6.7  (Optional) Connect a calendar for meeting-load signal — no key needed:
+       In the app: Privacy Centre -> Connected sources -> paste a PRIVATE ICS
+       URL (Google Calendar: Settings -> Secret address in iCal format).
+       Only start/end times are read; titles/attendees are discarded.
+
+  >>> THE QUIET FIRST WEEK IS NORMAL <<<
+  Nobody sees an analysis until their OWN baseline has 7 days of their OWN
+  data. An empty-looking dashboard in week one is the product working, not
+  broken. Tell people this in advance.
+
+
+-------------------------------------------------------------------------------
+ 7. CHECK THE THREE NEW FEATURES I ADDED  [YOU]
+-------------------------------------------------------------------------------
+Once you are logged in as a real employee (section 6):
+
+  B) Wellbeing pulse trend:
+     - On the dashboard, fill the "Daily check-in" (stress/energy/recovery).
+     - Do it on 2+ different days (or via the API with different dates).
+     - A "Your check-in trend" card appears showing your own ratings over time.
+
+  C) Support resources:
+     - Log in as the ADMIN -> Administration -> "Support resources" section.
+     - Add one (e.g. label "Employee Assistance Line", category "crisis",
+       a phone or URL). Click "Add resource".
+     - Log in as an employee -> dashboard shows a "Support" card with it.
+       Crisis resources always appear first.
+
+  D) Intervention follow-up:
+     - When the system proposes a suggestion, respond to it ("That helps"),
+       then rate it 1–5. After rating, it stops asking "how useful was this?"
+       even after a page reload (previously it re-asked every time).
+
+
+-------------------------------------------------------------------------------
+ 8. RUN THE TEST SUITE (confirms everything, incl. my new code)  [YOU]
+-------------------------------------------------------------------------------
+After Docker is up (so Postgres + Redis exist):
+
+     cd "E:\Personal Projects\work_well_ai"
+     $env:POSTGRES_HOST="localhost"
+     $env:POSTGRES_USER="workwell"
+     $env:POSTGRES_PASSWORD="workwell"
+     $env:REDIS_URL="redis://localhost:6379/1"
+     $env:PYTHONPATH=(Get-Location).Path
+     .\.venv\Scripts\python.exe -m pytest tests -q
+
+Expect all tests to pass, including the 11 new ones in
+tests\integration\test_wellbeing_features.py.
+
+
+-------------------------------------------------------------------------------
+ QUICK SUMMARY — the shortest path to "live with real data"
+-------------------------------------------------------------------------------
+  1. (admin PowerShell) wsl --install --no-distribution  -> REBOOT
+  2. Start Docker Desktop, accept license
+  3. Put your free Gemini key in .env  (GEMINI_API_KEY=...)
+  4. docker compose up --build
+  5. docker compose exec backend alembic -c database/migrations/alembic.ini upgrade head
+  6. docker compose exec backend python scripts/create_org.py --org "You" --admin you@you.com
+  7. docker compose exec backend python scripts/ingest_knowledge.py
+  8. Log in at http://localhost:3000, add people, install the desktop agent
+  9. Wait ~7 days of real data per person for baselines to form
+===============================================================================

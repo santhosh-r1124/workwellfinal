@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
 
+import { isDemoActive } from "../api/demo";
 import { useAuth } from "../context/AuthContext";
 import AssistantBubble from "./AssistantBubble";
 import Icon from "./Icon";
@@ -147,7 +148,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 min-w-0 pt-16 md:pt-0">
         {/* Extra bottom padding so the floating assistant never sits on top
             of the last element on the page. */}
-        <div className="mx-auto w-full max-w-3xl px-4 md:px-8 pt-6 md:pt-10 pb-28">{children}</div>
+        <div className="mx-auto w-full max-w-3xl px-4 md:px-8 pt-6 md:pt-10 pb-28">
+          {isDemoActive() && (
+            <div className="panel border-attention/40 bg-attention-ghost px-4 py-2.5 mb-6 text-[12.5px] text-attention">
+              Demo mode — everything on screen is invented sample data, not a real analysis. Log out
+              to leave demo mode.
+            </div>
+          )}
+          {children}
+        </div>
       </main>
 
       {/* Both are fixed, and the assistant sits above the drawer's layer -

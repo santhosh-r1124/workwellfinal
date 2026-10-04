@@ -141,6 +141,20 @@ def add_feedback(db: Session, intervention_id: str, employee_id: str, rating: in
     return row
 
 
+def interventions_with_feedback(db: Session, intervention_ids: list[str]) -> set[str]:
+    """Which of these interventions the employee has already rated.
+
+    The follow-up prompt ("did this help?") hangs off this: a suggestion that
+    has been rated has closed the loop and should not keep asking. Done as one
+    query over the visible set rather than per-card, so a dashboard with a
+    handful of nudges is still a single round trip.
+    """
+    if not intervention_ids:
+        return set()
+    stmt = select(Feedback.intervention_id).where(Feedback.intervention_id.in_(intervention_ids))
+    return set(db.scalars(stmt))
+
+
 def recent_agent_runs(db: Session, employee_id: str, limit: int = 10) -> list[AgentRun]:
     stmt = (
         select(AgentRun)

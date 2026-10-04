@@ -18,7 +18,11 @@ class Settings(BaseSettings):
     ai_provider: str = "gemini"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.8-flash"
-    gemini_embedding_model: str = "text-embedding-004"
+    # Tried in order when the model above has spent its quota. A free tier
+    # caps requests per model per day, so this is the difference between
+    # a few dozen generated replies a day and a few hundred.
+    gemini_fallback_models: str = ""
+    gemini_embedding_model: str = "gemini-embedding-001"
     gemini_embedding_dim: int = 768
 
     # Pacing, sized for a free API tier where the binding constraint is

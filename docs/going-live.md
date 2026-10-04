@@ -71,7 +71,7 @@ before anyone opens the assistant.
 GEMINI_API_KEY=...            # ai.google.dev -> Get API key
 AI_PROVIDER=gemini            # or `local` for no model at all
 GEMINI_MODEL=gemini-3.8-flash
-GEMINI_EMBEDDING_MODEL=text-embedding-004
+GEMINI_EMBEDDING_MODEL=gemini-embedding-001
 GEMINI_EMBEDDING_DIM=768
 ```
 
@@ -106,7 +106,7 @@ It makes the real generate and embed calls and tells you which worked.
   has gone strange.
 
 - **`GEMINI_EMBEDDING_DIM` must match the column.** `knowledge_chunks.embedding`
-  is `VECTOR(768)`. `text-embedding-004` is 768, so the default is
+  is `VECTOR(768)`. `gemini-embedding-001` is asked for 768 dimensions, so the default is
   consistent. A model with different dimensions needs a migration altering
   that column — inserts fail loudly, which is the good case, but only
   after you have paid for the embeddings.

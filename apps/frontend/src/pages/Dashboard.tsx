@@ -7,6 +7,8 @@ import Explainability from "../components/Explainability";
 import InterventionCard from "../components/InterventionCard";
 import MetricBar from "../components/MetricBar";
 import PageHeader from "../components/PageHeader";
+import SelfReportTrend from "../components/SelfReportTrend";
+import SupportResources from "../components/SupportResources";
 import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import { useAuth } from "../context/AuthContext";
 import type { BaselineResponse, DailyHistoryPoint, Intervention, PatternRecord } from "../types";
@@ -74,6 +76,9 @@ export default function Dashboard() {
   const [history, setHistory] = useState<DailyHistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Bumped when a check-in is saved, so the pulse trend refetches without
+  // CheckIn needing to know the trend exists.
+  const [pulseReload, setPulseReload] = useState(0);
 
   const loadInterventions = () => {
     api.listInterventions().then(setInterventions).catch(() => undefined);
@@ -192,7 +197,11 @@ export default function Dashboard() {
           a baseline that does not exist. */}
       {readiness && !ready && <BaselineProgress readiness={readiness} />}
 
-      <CheckIn />
+      <CheckIn onSaved={() => setPulseReload((k) => k + 1)} />
+
+      <SelfReportTrend reloadKey={pulseReload} />
+
+      <SupportResources />
 
       {ready && (
         <>

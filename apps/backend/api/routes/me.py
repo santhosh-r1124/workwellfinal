@@ -22,6 +22,7 @@ from apps.backend.services import (
     audit_service,
     connector_service,
     device_service,
+    support_service,
     telemetry_service,
 )
 from shared.enums.intervention import InterventionStatus
@@ -36,6 +37,11 @@ class InterventionOut(BaseModel):
     status: str
     employee_response: str | None
     created_at: str
+    # Whether the employee has already rated this one. Drives the "did this
+    # help?" follow-up: a rated suggestion has closed the loop and stops
+    # asking. Defaults true so a single-row response (respond()) never
+    # re-prompts before the list has told the client otherwise.
+    has_feedback: bool = True
 
 
 class InterventionResponseIn(BaseModel):
@@ -291,6 +297,8 @@ def update_preferences(
 
 @router.get("/interventions", response_model=list[InterventionOut])
 def list_interventions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    rows = agent_repo.visible_interventions(db, user.id)
+    rated = agent_repo.interventions_with_feedback(db, [r.id for r in rows])
     return [
         InterventionOut(
             id=row.id,
@@ -299,8 +307,9 @@ def list_interventions(user: User = Depends(get_current_user), db: Session = Dep
             status=row.status,
             employee_response=row.employee_response,
             created_at=row.created_at.isoformat(),
+            has_feedback=row.id in rated,
         )
-        for row in agent_repo.visible_interventions(db, user.id)
+        for row in rows
     ]
 
 
@@ -410,3 +419,47 @@ def submit_self_report(
 
     daily = telemetry_service.recompute_daily_feature(db, user.id, day)
     return {"date": day.isoformat(), "daily_feature_id": daily.id}
+
+
+@router.get("/self-report/history")
+def self_report_history(
+    days: int = 30, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """The employee's own check-in series, oldest first - what the wellbeing
+    pulse trend is drawn from. Stress/energy/recovery are the person's own
+    1-5 ratings, never a model's inference, so this is the one line on the
+    dashboard that is ground truth rather than proxy.
+
+    Only the caller's own reports, and only the numbers: the free-text note
+    is deliberately left out of the series so a trend that may be glanced at
+    over someone's shoulder carries no words.
+    """
+    window = min(max(days, 1), 120)
+    rows = (
+        db.query(SelfReport)
+        .filter_by(employee_id=user.id)
+        .order_by(SelfReport.date.desc())
+        .limit(window)
+        .all()
+    )
+    rows.reverse()
+    return {
+        "employee_id": user.id,
+        "reports": [
+            {
+                "date": row.date.isoformat(),
+                "stress": row.stress,
+                "energy": row.energy,
+                "recovery": row.recovery,
+            }
+            for row in rows
+        ],
+    }
+
+
+@router.get("/support-resources")
+def my_support_resources(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Where this employee can turn for help, as published by their org. The
+    employee view hides retired resources; an admin sees all of them through
+    /admin/support-resources."""
+    return {"resources": support_service.list_for_org(db, user.org_id, active_only=True)}

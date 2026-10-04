@@ -15,6 +15,7 @@ from apps.backend.models.organization import Organization
 from apps.backend.models.pattern import PatternStateRecord
 from apps.backend.models.role import Role
 from apps.backend.models.safety import SafetyEvent
+from apps.backend.models.support_resource import SupportResource
 from apps.backend.models.telemetry import SelfReport, TelemetryEvent
 from apps.backend.models.user import User
 
@@ -39,6 +40,7 @@ __all__ = [
     "ChatSession",
     "ChatMessage",
     "SafetyEvent",
+    "SupportResource",
     "OrgSettings",
     "DeviceToken",
     "ConnectorConfig",

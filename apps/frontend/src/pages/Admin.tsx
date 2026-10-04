@@ -4,7 +4,16 @@ import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
 import Toggle from "../components/Toggle";
 import { friendlyError } from "../lib/errors";
-import type { AuditLogEntry, OrgSettings, OrgUser } from "../types";
+import type { AuditLogEntry, OrgSettings, OrgUser, SupportResource } from "../types";
+
+const EMPTY_RESOURCE = {
+  label: "",
+  category: "general",
+  url: "",
+  phone: "",
+  email: "",
+  description: "",
+};
 
 interface Connector {
   key: string;
@@ -20,6 +29,9 @@ export default function Admin() {
   const [sources, setSources] = useState<{ key: string; label: string; never_collectible: boolean }[]>([]);
   const [connectors, setConnectors] = useState<Connector[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
+  const [resources, setResources] = useState<SupportResource[]>([]);
+  const [categories, setCategories] = useState<string[]>(["general"]);
+  const [draft, setDraft] = useState(EMPTY_RESOURCE);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,6 +41,13 @@ export default function Admin() {
     api.getAdminDataSources().then((r) => setSources(r.data_sources)).catch(() => undefined);
     api.getIntegrations().then((r) => setConnectors(r.connectors)).catch(() => undefined);
     api.getOrgUsers().then((r) => setUsers(r.users)).catch(() => undefined);
+    api
+      .getAdminSupportResources()
+      .then((r) => {
+        setResources(r.resources);
+        setCategories(r.categories);
+      })
+      .catch(() => undefined);
   };
 
   useEffect(load, []);
@@ -56,6 +75,38 @@ export default function Admin() {
       load();
     } catch (e) {
       setError(friendlyError(e, "Couldn't update that person."));
+    }
+  };
+
+  const addResource = async () => {
+    setStatus(null);
+    setError(null);
+    try {
+      await api.createSupportResource({
+        label: draft.label,
+        category: draft.category,
+        url: draft.url || null,
+        phone: draft.phone || null,
+        email: draft.email || null,
+        description: draft.description || null,
+      });
+      setDraft(EMPTY_RESOURCE);
+      setStatus("Support resource published.");
+      load();
+    } catch (e) {
+      setError(friendlyError(e, "Couldn't add that resource."));
+    }
+  };
+
+  const removeResource = async (resource: SupportResource) => {
+    setStatus(null);
+    setError(null);
+    try {
+      await api.deleteSupportResource(resource.id);
+      setStatus(`Removed "${resource.label}".`);
+      load();
+    } catch (e) {
+      setError(friendlyError(e, "Couldn't remove that resource."));
     }
   };
 
@@ -197,6 +248,100 @@ export default function Admin() {
           </div>
         ))}
       </div>
+
+      <h2 className="eyebrow mb-2.5">Support resources</h2>
+      <div className="panel overflow-hidden mb-2">
+        {resources.map((r, i) => (
+          <div
+            key={r.id}
+            className={`flex items-center justify-between gap-4 px-5 py-3 ${
+              i < resources.length - 1 ? "border-b border-line-soft" : ""
+            }`}
+          >
+            <div className="min-w-0">
+              <div className="text-[13.5px] truncate">{r.label}</div>
+              <div className="text-[11.5px] text-text-faint truncate">
+                {r.category}
+                {r.phone ? ` · ${r.phone}` : ""}
+                {r.email ? ` · ${r.email}` : ""}
+                {r.url ? ` · ${r.url}` : ""}
+              </div>
+            </div>
+            <button
+              onClick={() => removeResource(r)}
+              className="btn-quiet shrink-0"
+              aria-label={`Remove ${r.label}`}
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        {resources.length === 0 && (
+          <p className="px-5 py-6 text-center text-[13px] text-text-muted">
+            No resources published yet. Employees see this section only once you add one.
+          </p>
+        )}
+      </div>
+      <div className="panel p-5 mb-2 space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <input
+            value={draft.label}
+            onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+            placeholder="Label (e.g. Employee Assistance Line)"
+            className="field flex-1 min-w-[200px]"
+            aria-label="Resource label"
+          />
+          <select
+            value={draft.category}
+            onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+            className="field w-40"
+            aria-label="Resource category"
+          >
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <input
+            value={draft.phone}
+            onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
+            placeholder="Company number (optional)"
+            className="field flex-1 min-w-[160px]"
+            aria-label="Resource phone"
+          />
+          <input
+            value={draft.email}
+            onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+            placeholder="Company email (optional)"
+            className="field flex-1 min-w-[160px]"
+            aria-label="Resource email"
+          />
+          <input
+            value={draft.url}
+            onChange={(e) => setDraft({ ...draft, url: e.target.value })}
+            placeholder="URL (optional)"
+            className="field flex-1 min-w-[160px]"
+            aria-label="Resource URL"
+          />
+        </div>
+        <input
+          value={draft.description}
+          onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+          placeholder="Short description (optional)"
+          className="field w-full"
+          aria-label="Resource description"
+        />
+        <button onClick={addResource} disabled={!draft.label.trim()} className="btn-primary">
+          Add resource
+        </button>
+      </div>
+      <p className="text-[12px] text-text-faint mb-7">
+        Published to everyone in the organisation and shown on their dashboard. A "crisis" resource
+        is always listed first. This is content you publish — never collected data.
+      </p>
 
       <h2 className="eyebrow mb-2.5">People</h2>
       <div className="panel overflow-hidden mb-2">

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
+import { DEMO_EMAIL, DEMO_PASSWORD } from "../api/demo";
 import { Mark } from "../components/AppShell";
 import ThemeToggle from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
@@ -99,6 +100,26 @@ export default function Login() {
             {busy ? "Signing in..." : "Sign in"}
           </button>
         </form>
+
+        {/* No-backend demo: these credentials switch the app to sample data
+            so the UI can be explored with nothing running behind it. */}
+        <button
+          type="button"
+          onClick={() => {
+            setEmail(DEMO_EMAIL);
+            setPassword(DEMO_PASSWORD);
+          }}
+          className="mt-4 w-full rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)]
+                     px-3 py-2.5 text-left hover:bg-[var(--glass-bg-strong)] transition-all"
+        >
+          <div className="text-[13px] font-medium">Try the demo (no backend needed)</div>
+          <div className="text-[11.5px] text-text-faint font-mono mt-0.5">
+            {DEMO_EMAIL} · {DEMO_PASSWORD}
+          </div>
+          <div className="text-[11px] text-text-faint mt-1">
+            Fills the form — then press Sign in. Everything shown will be invented sample data.
+          </div>
+        </button>
 
         {demo.length > 0 && (
           <div className="mt-5">

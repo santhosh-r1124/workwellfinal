@@ -9,6 +9,7 @@ from apps.backend.services import (
     audit_service,
     integration_service,
     onboarding_service,
+    support_service,
 )
 from shared.enums.roles import RoleName
 
@@ -177,6 +178,87 @@ def integrations(user: User = Depends(_admin_only), db: Session = Depends(get_db
     yet - surfaced explicitly so a vendor integration never looks configured
     when it isn't. `allowed: false` means this org's allowlist excludes it."""
     return {"connectors": integration_service.list_connectors(db, user.org_id)}
+
+
+class SupportResourceOut(BaseModel):
+    id: str
+    label: str
+    description: str | None
+    category: str
+    url: str | None
+    phone: str | None
+    email: str | None
+    sort_order: int
+    is_active: bool
+
+
+class SupportResourceCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=1000)
+    category: str = Field(default=support_service.DEFAULT_CATEGORY)
+    url: str | None = Field(default=None, max_length=2000)
+    phone: str | None = Field(default=None, max_length=50)
+    email: str | None = Field(default=None, max_length=200)
+    sort_order: int = Field(default=0, ge=0, le=1000)
+
+
+@router.get("/support-resources")
+def list_support_resources(user: User = Depends(_admin_only), db: Session = Depends(get_db)):
+    """Every resource this org has published, active or not - the admin view,
+    unlike /me/support-resources which hides retired ones."""
+    return {
+        "categories": support_service.CATEGORIES,
+        "resources": support_service.list_for_org(db, user.org_id, active_only=False),
+    }
+
+
+@router.post("/support-resources", response_model=SupportResourceOut, status_code=201)
+def create_support_resource(
+    payload: SupportResourceCreate,
+    user: User = Depends(_admin_only),
+    db: Session = Depends(get_db),
+):
+    if payload.category not in support_service.CATEGORIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"category must be one of {support_service.CATEGORIES}",
+        )
+    resource = support_service.create(
+        db,
+        user.org_id,
+        label=payload.label,
+        description=payload.description,
+        category=payload.category,
+        url=payload.url,
+        phone=payload.phone,
+        email=payload.email,
+        sort_order=payload.sort_order,
+    )
+    audit_service.record(
+        db,
+        actor_id=user.id,
+        subject_user_id=None,
+        action="admin.support_resource_created",
+        resource=f"support_resource:{resource['id']}",
+        meta={"label": payload.label, "category": payload.category},
+    )
+    return resource
+
+
+@router.delete("/support-resources/{resource_id}", status_code=204)
+def delete_support_resource(
+    resource_id: str, user: User = Depends(_admin_only), db: Session = Depends(get_db)
+):
+    if not support_service.delete(db, user.org_id, resource_id):
+        raise HTTPException(status_code=404, detail="Resource not found in your organization")
+    audit_service.record(
+        db,
+        actor_id=user.id,
+        subject_user_id=None,
+        action="admin.support_resource_deleted",
+        resource=f"support_resource:{resource_id}",
+        meta={},
+    )
 
 
 @router.get("/knowledge-base")

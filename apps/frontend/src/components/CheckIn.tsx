@@ -9,7 +9,7 @@ const SCALES: { key: "stress" | "energy" | "recovery"; label: string; low: strin
   { key: "recovery", label: "Recovery", low: "poor rest", high: "well rested" },
 ];
 
-export default function CheckIn() {
+export default function CheckIn({ onSaved }: { onSaved?: () => void } = {}) {
   const [status, setStatus] = useState<SelfReportStatus | null>(null);
   const [values, setValues] = useState({ stress: 3, energy: 3, recovery: 3 });
   const [saving, setSaving] = useState(false);
@@ -38,6 +38,7 @@ export default function CheckIn() {
       await api.submitSelfReport(values.stress, values.energy, values.recovery);
       setEditing(false);
       load();
+      onSaved?.();
     } catch {
       // A check-in is the one place the employee speaks for themselves.
       // Swallowing the failure left the form looking idle, as though the

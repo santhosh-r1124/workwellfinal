@@ -15,9 +15,13 @@ import type {
   OrgUser,
   PatternRecord,
   Preferences,
+  SelfReportPoint,
   SelfReportStatus,
+  SupportResource,
   TeamAnalytics,
 } from "../types";
+
+import { demoHandler, isDemoActive } from "./demo";
 
 const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -26,6 +30,13 @@ function getToken(): string | null {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  // Demo mode: answer from sample data, never touch the network. The real
+  // request path below is used for every normal (non-demo) session.
+  if (isDemoActive()) {
+    const body = typeof options.body === "string" ? JSON.parse(options.body) : undefined;
+    return demoHandler(path, options.method ?? "GET", body) as Promise<T>;
+  }
+
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -129,6 +140,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ stress, energy, recovery, note: note ?? null }),
     }),
+  getSelfReportHistory: (days = 30) =>
+    request<{ employee_id: string; reports: SelfReportPoint[] }>(
+      `/me/self-report/history?days=${days}`
+    ),
+  getSupportResources: () =>
+    request<{ resources: SupportResource[] }>("/me/support-resources"),
 
   listTeams: () => request<{ teams: string[] }>("/analytics/teams"),
   teamAnalytics: (team: string) =>
@@ -163,6 +180,23 @@ export const api = {
       "/admin/retention/apply",
       { method: "POST" }
     ),
+  getAdminSupportResources: () =>
+    request<{ categories: string[]; resources: SupportResource[] }>("/admin/support-resources"),
+  createSupportResource: (body: {
+    label: string;
+    description?: string | null;
+    category: string;
+    url?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    sort_order?: number;
+  }) =>
+    request<SupportResource>("/admin/support-resources", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteSupportResource: (id: string) =>
+    request<void>(`/admin/support-resources/${id}`, { method: "DELETE" }),
 };
 
 export { getToken };

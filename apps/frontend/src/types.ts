@@ -178,6 +178,9 @@ export interface Intervention {
   status: string;
   employee_response: string | null;
   created_at: string;
+  /** The employee has already rated this one, so the "did this help?"
+   *  follow-up has closed and should not ask again. */
+  has_feedback: boolean;
 }
 
 export interface SelfReportStatus {
@@ -186,6 +189,29 @@ export interface SelfReportStatus {
   energy?: number;
   recovery?: number;
   note?: string | null;
+}
+
+/** One day's own check-in, numbers only - the trend carries no free-text
+ *  note, so it stays safe to glance at over a shoulder. */
+export interface SelfReportPoint {
+  date: string;
+  stress: number;
+  energy: number;
+  recovery: number;
+}
+
+/** A place to turn for help, published by the org. Not collected data:
+ *  admin-authored content, shown to everyone, carrying no telemetry. */
+export interface SupportResource {
+  id: string;
+  label: string;
+  description: string | null;
+  category: string;
+  url: string | null;
+  phone: string | null;
+  email: string | null;
+  sort_order: number;
+  is_active: boolean;
 }
 
 export interface AuditLogEntry {

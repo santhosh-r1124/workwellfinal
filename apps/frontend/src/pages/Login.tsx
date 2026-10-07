@@ -5,6 +5,16 @@ import { Mark } from "../components/AppShell";
 import ThemeToggle from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
 
+// Registered trainee emails - password can be anything
+const REGISTERED_TRAINEES = [
+  "harish44443@gmail.com",
+  "karthikm6@gmail.com",
+  "sanika.g@gmail.com",
+  "debothri.ghosh@gmail.com",
+  "sksricharan2003@gmail.com",
+  "Santhosh@gmail.com",
+];
+
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -18,12 +28,39 @@ export default function Login() {
     e.preventDefault();
     setError(null);
     setBusy(true);
+
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setError("Please enter email and password");
+      setBusy(false);
+      return;
+    }
+
+    if (!password) {
+      setError("Please enter email and password");
+      setBusy(false);
+      return;
+    }
+
+    // Check if email is registered (password can be anything)
+    const isRegistered = REGISTERED_TRAINEES.some(
+      user => user.toLowerCase() === trimmedEmail.toLowerCase()
+    );
+
+    if (!isRegistered) {
+      setError("Email not registered");
+      setBusy(false);
+      return;
+    }
+
     try {
-      await login(email, password);
+      // Accept any password for registered emails
+      localStorage.setItem("user_email", trimmedEmail);
+      localStorage.setItem("user_token", `trainee_${Date.now()}`);
       navigate("/");
     } catch {
-      setError("That email and password didn't match an account.");
-    } finally {
+      setError("Login failed. Please try again.");
       setBusy(false);
     }
   };

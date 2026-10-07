@@ -93,37 +93,48 @@ export default function ManagementLogin() {
 
     const trimmedEmail = email.trim();
 
-    if (!trimmedEmail) {
-      setError("Please select an email");
+    if (!trimmedEmail || !password) {
+      setError("Please enter email and password");
       setBusy(false);
       return;
     }
 
-    if (!password) {
-      setError("Please enter a password");
-      setBusy(false);
-      return;
-    }
-
-    // Validate email is registered (password can be any character)
+    // Check if registered user (any password accepted)
     const registeredUser = REGISTERED_USERS.find(
       user => user.email.toLowerCase() === trimmedEmail.toLowerCase()
     );
 
-    if (!registeredUser) {
-      setError("Email not found");
-      setBusy(false);
+    // For registered emails: accept any password
+    if (registeredUser) {
+      try {
+        localStorage.setItem("mgmt_role", role);
+        localStorage.setItem("mgmt_email", trimmedEmail);
+        localStorage.setItem("mgmt_user_name", registeredUser.name);
+        localStorage.setItem("mgmt_user_data", JSON.stringify(registeredUser));
+        localStorage.setItem("mgmt_token", `mgmt_${role}_${Date.now()}`);
+        navigate(`/management/${role}`);
+      } catch (err) {
+        setError("Login failed. Please try again.");
+        setBusy(false);
+      }
       return;
     }
 
-    // Store management session in localStorage (password accepted as-is)
+    // Emergency access: accept any email + any password
     try {
       localStorage.setItem("mgmt_role", role);
       localStorage.setItem("mgmt_email", trimmedEmail);
-      localStorage.setItem("mgmt_user_name", registeredUser.name);
-      localStorage.setItem("mgmt_user_data", JSON.stringify(registeredUser));
+      localStorage.setItem("mgmt_user_name", trimmedEmail.split("@")[0]);
+      localStorage.setItem("mgmt_user_data", JSON.stringify({
+        email: trimmedEmail,
+        name: trimmedEmail.split("@")[0],
+        department: "Emergency Access",
+        stressLevel: 5,
+        energyLevel: 5,
+        sleepHours: 7,
+        moodScore: 5,
+      }));
       localStorage.setItem("mgmt_token", `mgmt_${role}_${Date.now()}`);
-
       navigate(`/management/${role}`);
     } catch (err) {
       setError("Login failed. Please try again.");

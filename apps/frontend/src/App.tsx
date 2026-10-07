@@ -8,6 +8,10 @@ import Login from "./pages/Login";
 import PatternTimeline from "./pages/PatternTimeline";
 import PrivacyCenter from "./pages/PrivacyCenter";
 import TeamAnalytics from "./pages/TeamAnalytics";
+import ManagementLogin from "./pages/ManagementLogin";
+import ManagementHR from "./pages/ManagementHR";
+import ManagementManager from "./pages/ManagementManager";
+import ManagementConsultant from "./pages/ManagementConsultant";
 
 const PAGES: { path: string; element: React.ReactElement }[] = [
   { path: "/", element: <Dashboard /> },
@@ -21,6 +25,10 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/management" element={<ManagementLogin />} />
+      <Route path="/management/hr" element={<ManagementHR />} />
+      <Route path="/management/manager" element={<ManagementManager />} />
+      <Route path="/management/consultant" element={<ManagementConsultant />} />
       {PAGES.map(({ path, element }) => (
         <Route
           key={path}

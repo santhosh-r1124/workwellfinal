@@ -1,18 +1,43 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { api } from "../api/client";
-import { DEMO_EMAIL, DEMO_PASSWORD } from "../api/demo";
 import { Mark } from "../components/AppShell";
 import ThemeToggle from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
-import type { DemoAccount } from "../types";
 
-const ROLE_HINT: Record<string, string> = {
-  employee: "their own pattern",
-  manager: "team aggregates",
-  admin: "org policy",
-};
+// Registered trainee users
+const REGISTERED_TRAINEES = [
+  {
+    email: "harish44443@gmail.com",
+    name: "Harish Kumar",
+    department: "Software Engineering",
+  },
+  {
+    email: "karthikm6@gmail.com",
+    name: "Karthik M",
+    department: "Data Engineering",
+  },
+  {
+    email: "sanika.g@gmail.com",
+    name: "Sanika G",
+    department: "AI/ML",
+  },
+  {
+    email: "debothri.ghosh@gmail.com",
+    name: "Debothri Ghosh",
+    department: "Quality Engineering",
+  },
+  {
+    email: "sksricharan2003@gmail.com",
+    name: "S K Sricharan",
+    department: "Cloud & DevOps",
+  },
+  {
+    email: "Santhosh@gmail.com",
+    name: "Santhosh Rajinikanth",
+    department: "AI Engineering",
+  },
+];
 
 export default function Login() {
   const { login } = useAuth();
@@ -21,29 +46,46 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  // Which fixture accounts this deployment still has - none, on anything
-  // running on real data. Hardcoding them here meant the first screen of
-  // the product kept offering credentials that had been purged, which
-  // reads as a broken login rather than a cleaned database.
-  const [demo, setDemo] = useState<DemoAccount[]>([]);
-  useEffect(() => {
-    api
-      .demoAccounts()
-      .then(setDemo)
-      .catch(() => setDemo([]));
-  }, []);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setBusy(true);
+
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setError("Please enter an email");
+      setBusy(false);
+      return;
+    }
+
+    if (!password) {
+      setError("Please enter a password");
+      setBusy(false);
+      return;
+    }
+
+    // Check if email is registered (password can be any character)
+    const registeredUser = REGISTERED_TRAINEES.find(
+      user => user.email.toLowerCase() === trimmedEmail.toLowerCase()
+    );
+
+    if (!registeredUser) {
+      setError("Email not found");
+      setBusy(false);
+      return;
+    }
+
     try {
-      await login(email, password);
+      // Create session for trainee (no backend auth needed)
+      localStorage.setItem("user_email", trimmedEmail);
+      localStorage.setItem("user_name", registeredUser.name);
+      localStorage.setItem("user_token", `trainee_${Date.now()}`);
       navigate("/");
     } catch {
-      setError("That email and password didn't match an account.");
-    } finally {
+      setError("Login failed. Please try again.");
       setBusy(false);
     }
   };
@@ -81,14 +123,24 @@ export default function Login() {
           <label htmlFor="password" className="block text-[13px] text-text-muted mb-1.5">
             Password
           </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="field mb-4"
-            autoComplete="current-password"
-          />
+          <div className="relative mb-4">
+            <input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="field w-full pr-10"
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted hover:text-text transition-colors"
+              title={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? "👁️" : "👁️‍🗨️"}
+            </button>
+          </div>
 
           {error && (
             <p className="text-[13px] text-attention mb-3" role="alert">
@@ -101,57 +153,15 @@ export default function Login() {
           </button>
         </form>
 
-        {/* No-backend demo: these credentials switch the app to sample data
-            so the UI can be explored with nothing running behind it. */}
-        <button
-          type="button"
-          onClick={() => {
-            setEmail(DEMO_EMAIL);
-            setPassword(DEMO_PASSWORD);
-          }}
-          className="mt-4 w-full rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)]
-                     px-3 py-2.5 text-left hover:bg-[var(--glass-bg-strong)] transition-all"
-        >
-          <div className="text-[13px] font-medium">Try the demo (no backend needed)</div>
-          <div className="text-[11.5px] text-text-faint font-mono mt-0.5">
-            {DEMO_EMAIL} · {DEMO_PASSWORD}
-          </div>
-          <div className="text-[11px] text-text-faint mt-1">
-            Fills the form — then press Sign in. Everything shown will be invented sample data.
-          </div>
-        </button>
-
-        {demo.length > 0 && (
-          <div className="mt-5">
-            <p className="eyebrow mb-2">Demo accounts on this deployment</p>
-            <div className="space-y-1.5">
-              {demo.map((a) => (
-                <button
-                  key={a.email}
-                  onClick={() => {
-                    setEmail(a.email);
-                    setPassword(a.password);
-                  }}
-                  className={`w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition-all ${
-                    email === a.email
-                      ? "border-accent/40 bg-accent-ghost"
-                      : "border-[var(--glass-border)] bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-strong)]"
-                  }`}
-                >
-                  <span className="text-[13px] font-medium capitalize">{a.role}</span>
-                  <span className="text-[11px] text-text-faint">
-                    {ROLE_HINT[a.role] ?? a.email}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <p className="text-[11.5px] text-text-faint mt-2.5">
-              Fixture accounts, seeded deliberately. They disappear from here once
-              <span className="font-mono"> purge_demo_data.py </span>
-              has run.
-            </p>
-          </div>
-        )}
+        <div className="mt-6 text-center border-t border-slate-600 pt-6">
+          <p className="text-slate-400 text-xs mb-2">Are you a manager, HR professional, or wellness consultant?</p>
+          <a
+            href="/management"
+            className="inline-block px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors text-sm"
+          >
+            Access Management Portal →
+          </a>
+        </div>
       </div>
     </div>
   );

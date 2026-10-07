@@ -5,40 +5,6 @@ import { Mark } from "../components/AppShell";
 import ThemeToggle from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
 
-// Registered trainee users
-const REGISTERED_TRAINEES = [
-  {
-    email: "harish44443@gmail.com",
-    name: "Harish Kumar",
-    department: "Software Engineering",
-  },
-  {
-    email: "karthikm6@gmail.com",
-    name: "Karthik M",
-    department: "Data Engineering",
-  },
-  {
-    email: "sanika.g@gmail.com",
-    name: "Sanika G",
-    department: "AI/ML",
-  },
-  {
-    email: "debothri.ghosh@gmail.com",
-    name: "Debothri Ghosh",
-    department: "Quality Engineering",
-  },
-  {
-    email: "sksricharan2003@gmail.com",
-    name: "S K Sricharan",
-    department: "Cloud & DevOps",
-  },
-  {
-    email: "Santhosh@gmail.com",
-    name: "Santhosh Rajinikanth",
-    department: "AI Engineering",
-  },
-];
-
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -52,40 +18,12 @@ export default function Login() {
     e.preventDefault();
     setError(null);
     setBusy(true);
-
-    const trimmedEmail = email.trim();
-
-    if (!trimmedEmail) {
-      setError("Please enter an email");
-      setBusy(false);
-      return;
-    }
-
-    if (!password) {
-      setError("Please enter a password");
-      setBusy(false);
-      return;
-    }
-
-    // Check if email is registered (password can be any character)
-    const registeredUser = REGISTERED_TRAINEES.find(
-      user => user.email.toLowerCase() === trimmedEmail.toLowerCase()
-    );
-
-    if (!registeredUser) {
-      setError("Email not found");
-      setBusy(false);
-      return;
-    }
-
     try {
-      // Create session for trainee (no backend auth needed)
-      localStorage.setItem("user_email", trimmedEmail);
-      localStorage.setItem("user_name", registeredUser.name);
-      localStorage.setItem("user_token", `trainee_${Date.now()}`);
+      await login(email, password);
       navigate("/");
     } catch {
-      setError("Login failed. Please try again.");
+      setError("That email and password didn't match an account.");
+    } finally {
       setBusy(false);
     }
   };

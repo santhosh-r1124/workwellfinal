@@ -32,6 +32,31 @@ export default function ConnectorList() {
 
   useEffect(load, []);
 
+  // Back from Google's sign-in page: say how it went, then tidy the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get("calendar");
+    if (!outcome) return;
+    if (outcome === "connected") setMessage("Google Calendar connected — meeting times from the last two weeks are in.");
+    else if (outcome === "cancelled") setError("Google sign-in was cancelled. Nothing was connected.");
+    else setError("Google Calendar couldn't be connected. Try again, or check the sign-in account.");
+    params.delete("calendar");
+    const rest = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
+  }, []);
+
+  const connectWithGoogle = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { url } = await api.googleCalendarAuthorize();
+      window.location.href = url;
+    } catch {
+      setError("Google Calendar isn't set up on this server yet.");
+      setBusy(false);
+    }
+  };
+
   const save = async (connector: ConnectorInfo) => {
     setBusy(true);
     setError(null);
@@ -130,6 +155,14 @@ export default function ConnectorList() {
                       Disconnect
                     </button>
                   </>
+                ) : c.auth_kind === "oauth2" ? (
+                  <button
+                    onClick={connectWithGoogle}
+                    disabled={busy}
+                    className="btn-primary !py-1 !px-3 text-[12px] disabled:opacity-50"
+                  >
+                    Sign in with Google
+                  </button>
                 ) : (
                   <button
                     onClick={() => setEditing(editing === c.key ? null : c.key)}

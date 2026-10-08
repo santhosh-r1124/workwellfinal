@@ -71,7 +71,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:3300
 - Backend: http://localhost:8000
 - API docs: http://localhost:8000/docs
 
@@ -95,7 +95,7 @@ print('chunks ingested:', ingest_knowledge_base(db))
 db.close()"
 ```
 
-Then log in at http://localhost:3000/login with one of the seeded demo accounts, e.g.
+Then log in at http://localhost:3300/login with one of the seeded demo accounts, e.g.
 `employee.b@demo.workwell.ai` / `workwell-demo` (Employee B has a synthetic "increasing overtime"
 pattern and will show a detected pattern change on the dashboard).
 

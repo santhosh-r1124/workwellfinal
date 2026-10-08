@@ -39,4 +39,6 @@ USER workwell
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "alembic -c database/migrations/alembic.ini upgrade head && uvicorn apps.backend.main:app --host 0.0.0.0 --port 8000"]
+# Migrate, load first-start data when DEMO_MODE is on, then listen on $PORT
+# (default 8000) on all interfaces.
+CMD ["sh", "scripts/start_backend.sh"]

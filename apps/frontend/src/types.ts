@@ -235,4 +235,20 @@ export interface DemoAccount {
   email: string;
   role: string;
   password: string;
+  full_name?: string;
+}
+
+export interface WellnessOverview {
+  as_of: string;
+  window_days: number;
+  labels: Record<string, string>;
+  scale_max: number;
+  employees: number;
+  cohort_size: number;
+  min_cohort: number;
+  sufficient_cohort: boolean;
+  pattern_states: Record<string, number>;
+  trend: { week_ending: string; contributors: number; stress: number | null; energy: number | null; recovery: number | null }[];
+  metrics: Record<string, { change_pct: number; direction: "up" | "down" | "flat"; contributing_employees: number }>;
+  suppressed: string[];
 }

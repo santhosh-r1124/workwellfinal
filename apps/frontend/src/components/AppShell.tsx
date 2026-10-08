@@ -15,8 +15,8 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { to: "/", label: "Dashboard", icon: "dashboard", roles: ["employee", "manager", "admin"] },
-  { to: "/timeline", label: "Pattern timeline", icon: "timeline", roles: ["employee", "manager", "admin"] },
+  { to: "/", label: "Dashboard", icon: "dashboard", roles: ["employee", "admin"] },
+  { to: "/timeline", label: "Pattern timeline", icon: "timeline", roles: ["employee", "admin"] },
   { to: "/privacy", label: "Privacy centre", icon: "privacy", roles: ["employee", "manager", "admin"] },
   { to: "/teams", label: "Team analytics", icon: "teams", roles: ["manager", "admin"] },
   { to: "/admin", label: "Administration", icon: "admin", roles: ["admin"] },

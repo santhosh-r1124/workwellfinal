@@ -40,6 +40,9 @@ def _hint_for(connector_key: str, config: dict) -> str:
     connector = get_connector(connector_key)
     if connector is None:
         return ""
+    if connector.metadata.auth_kind == "oauth2":
+        # The stored value is a refresh token; no part of it is a useful hint.
+        return "signed in with Google" if connector_key == "google_calendar" else "signed in"
     for field in connector.metadata.required_config:
         value = config.get(field)
         if isinstance(value, str) and value:

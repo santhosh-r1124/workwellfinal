@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,7 +13,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 480
 
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3300,http://127.0.0.1:3300"
 
     # AI
     ai_provider: str = "gemini"
@@ -21,7 +22,9 @@ class Settings(BaseSettings):
     # Tried in order when the model above has spent its quota. A free tier
     # caps requests per model per day, so this is the difference between
     # a few dozen generated replies a day and a few hundred.
-    gemini_fallback_models: str = ""
+    gemini_fallback_models: str = "gemini-3.7-flash,gemini-3.5-flash-lite"
+    # Per-request cap; a model that stalls past it moves on to the next one.
+    gemini_timeout_seconds: int = 20
     gemini_embedding_model: str = "gemini-embedding-001"
     gemini_embedding_dim: int = 768
 
@@ -36,7 +39,15 @@ class Settings(BaseSettings):
     # throttled beats silently skipping the work.
     llm_max_wait_seconds: float = 120.0
 
-    # Database
+    # Presentation mode: employees sign in with their work email (any
+    # non-empty password) and the HR / wellness portals open without a
+    # per-person account. Off by default; normal authentication is
+    # unchanged when false.
+    demo_mode: bool = False
+
+    # Database. A single DATABASE_URL (as managed Postgres hosts provide)
+    # takes precedence over the individual POSTGRES_* fields.
+    database_url_override: str = Field(default="", validation_alias="DATABASE_URL")
     postgres_host: str = "postgres"
     postgres_port: int = 5432
     postgres_db: str = "workwell"
@@ -75,9 +86,17 @@ class Settings(BaseSettings):
     # worker container runs the same jobs off the request path.
     inline_analysis_fallback: bool = True
 
+    # Google Calendar (OAuth). Either the id/secret pair, or the path to the
+    # OAuth client JSON downloaded from Google Cloud. The redirect URI must
+    # be this backend's /integrations/google/callback.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_client_secret_file: str = ""
+    google_oauth_redirect_uri: str = "http://localhost:8000/integrations/google/callback"
+
     # Notifications
     notification_channel: str = "log"  # none | log | smtp | webhook
-    app_base_url: str = "http://localhost:3000"
+    app_base_url: str = "http://localhost:3300"
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
@@ -94,6 +113,12 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        if self.database_url_override:
+            url = self.database_url_override
+            for prefix in ("postgres://", "postgresql://"):
+                if url.startswith(prefix):
+                    return "postgresql+psycopg://" + url[len(prefix):]
+            return url
         return (
             f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"

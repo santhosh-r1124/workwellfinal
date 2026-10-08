@@ -1,7 +1,8 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 
 import AppShell from "./components/AppShell";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { useAuth } from "./context/AuthContext";
 import Admin from "./pages/Admin";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
@@ -13,8 +14,16 @@ import ManagementHR from "./pages/ManagementHR";
 import ManagementManager from "./pages/ManagementManager";
 import ManagementConsultant from "./pages/ManagementConsultant";
 
+// Managers have no personal dashboard in this product - their view is the
+// team aggregate - so their home is Team analytics.
+function Home() {
+  const { user } = useAuth();
+  if (user?.role === "manager") return <Navigate to="/teams" replace />;
+  return <Dashboard />;
+}
+
 const PAGES: { path: string; element: React.ReactElement }[] = [
-  { path: "/", element: <Dashboard /> },
+  { path: "/", element: <Home /> },
   { path: "/timeline", element: <PatternTimeline /> },
   { path: "/privacy", element: <PrivacyCenter /> },
   { path: "/teams", element: <TeamAnalytics /> },

@@ -49,3 +49,12 @@ build/
 # Database dumps - never in the repository.
 backups/
 *.sql.gz
+.env
+.env.*
+!.env.example
+api.txt
+__pycache__/
+*.pyc
+node_modules/
+.venv/
+venv/

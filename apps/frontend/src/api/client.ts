@@ -19,11 +19,18 @@ import type {
   SelfReportStatus,
   SupportResource,
   TeamAnalytics,
+  WellnessOverview,
 } from "../types";
 
 import { demoHandler, isDemoActive } from "./demo";
 
-const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+// Set at build time. A production bundle never falls back to localhost:
+// without a configured URL it calls its own origin.
+const API_BASE_URL: string = (
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? "http://localhost:8000" : "")
+).replace(/\/+$/, "");
 
 function getToken(): string | null {
   return localStorage.getItem("workwell_token");
@@ -63,6 +70,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
+  portalLogin: (email: string, password: string, portal: string) =>
+    request<{ access_token: string; user_id: string; role: string }>("/auth/portal-login", {
+      method: "POST",
+      body: JSON.stringify({ email, password, portal }),
+    }),
+  googleCalendarAuthorize: () => request<{ url: string }>("/me/connectors/google_calendar/authorize"),
+  wellnessOverview: () => request<WellnessOverview>("/analytics/wellness-overview"),
   me: () => request<{ id: string; email: string; full_name: string; role: string }>("/auth/me"),
   demoAccounts: () => request<DemoAccount[]>("/auth/demo-accounts"),
   getConsent: () => request<DataSourceInfo[]>("/consent"),

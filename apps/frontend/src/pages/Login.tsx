@@ -1,19 +1,11 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 import { Mark } from "../components/AppShell";
 import ThemeToggle from "../components/ThemeToggle";
+import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-
-// Registered trainee emails - password can be anything
-const REGISTERED_TRAINEES = [
-  "harish44443@gmail.com",
-  "karthikm6@gmail.com",
-  "sanika.g@gmail.com",
-  "debothri.ghosh@gmail.com",
-  "sksricharan2003@gmail.com",
-  "Santhosh@gmail.com",
-];
+import type { DemoAccount } from "../types";
 
 export default function Login() {
   const { login } = useAuth();
@@ -23,44 +15,36 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [directory, setDirectory] = useState<DemoAccount[]>([]);
+
+  useEffect(() => {
+    api
+      .demoAccounts()
+      .then((accounts) => setDirectory(accounts.filter((a) => a.role === "employee")))
+      .catch(() => setDirectory([]));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setBusy(true);
 
     const trimmedEmail = email.trim();
-
-    if (!trimmedEmail) {
+    if (!trimmedEmail || !password) {
       setError("Please enter email and password");
-      setBusy(false);
       return;
     }
 
-    if (!password) {
-      setError("Please enter email and password");
-      setBusy(false);
-      return;
-    }
-
-    // Check if email is registered (password can be anything)
-    const isRegistered = REGISTERED_TRAINEES.some(
-      user => user.toLowerCase() === trimmedEmail.toLowerCase()
-    );
-
-    if (!isRegistered) {
-      setError("Email not registered");
-      setBusy(false);
-      return;
-    }
-
+    setBusy(true);
     try {
-      // Accept any password for registered emails
-      localStorage.setItem("user_email", trimmedEmail);
-      localStorage.setItem("user_token", `trainee_${Date.now()}`);
+      await login(trimmedEmail, password);
       navigate("/");
-    } catch {
-      setError("Login failed. Please try again.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      setError(
+        msg.startsWith("401")
+          ? "Use one of the employee emails below. The password is the same as the email."
+          : "Can't reach the WorkWell server. Make sure the backend is running on port 8000."
+      );
       setBusy(false);
     }
   };
@@ -128,14 +112,41 @@ export default function Login() {
           </button>
         </form>
 
+        {directory.length > 0 && (
+          <div className="panel p-4 mt-4">
+            <div className="text-[12px] font-semibold text-text-muted mb-0.5">Demo Employees</div>
+            <div className="text-[11px] text-text-faint mb-2">Password is the same as the email.</div>
+            <ul className="space-y-1">
+              {directory.map((account) => (
+                <li key={account.email}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail(account.email);
+                      setPassword(account.email);
+                      setError(null);
+                    }}
+                    className="w-full text-left px-2 py-1.5 rounded-md hover:bg-[var(--glass-bg)] transition-colors"
+                  >
+                    <div className="text-[13px] text-text">{account.email}</div>
+                    {account.full_name && (
+                      <div className="text-[11px] text-text-faint">{account.full_name}</div>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="mt-6 text-center border-t border-slate-600 pt-6">
           <p className="text-slate-400 text-xs mb-2">Are you a manager, HR professional, or wellness consultant?</p>
-          <a
-            href="/management"
+          <Link
+            to="/management"
             className="inline-block px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors text-sm"
           >
             Access Management Portal →
-          </a>
+          </Link>
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ from apps.backend.core.security import create_access_token, verify_password
 from apps.backend.models import Role, User
 from apps.backend.repositories import user_repo
 from shared.constants.demo import DEMO_EMAIL_DOMAIN, DEMO_PASSWORD
+from shared.enums.roles import RoleName
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -25,10 +26,54 @@ class LoginResponse(BaseModel):
     role: str
 
 
+def _password_accepted(db: Session, user: User, password: str) -> bool:
+    """DEMO_MODE: an employee's password is their own email address (any
+    letter case). Only employees: managers and admins always need their
+    real password, and with DEMO_MODE off nothing here changes."""
+    if verify_password(password, user.hashed_password):
+        return True
+    if get_settings().demo_mode and password.strip().lower() == user.email.strip().lower():
+        role = db.get(Role, user.role_id)
+        return bool(role and role.name == RoleName.EMPLOYEE.value)
+    return False
+
+
+# Portal sign-in maps to the shared portal accounts created by
+# scripts/import_employee_data.py. Both hold the manager role, so they see
+# exactly what a manager sees: team aggregates behind the cohort floor.
+_PORTAL_ACCOUNTS = {
+    "hr": "people@workwell.ai",
+    "manager": "people@workwell.ai",
+    "wellness": "wellness@workwell.ai",
+}
+
+
+class PortalLoginRequest(BaseModel):
+    email: str
+    password: str
+    portal: str
+
+
+@router.post("/portal-login", response_model=LoginResponse)
+def portal_login(payload: PortalLoginRequest, db: Session = Depends(get_db)):
+    """DEMO_MODE only: the HR / manager and wellness portals accept any
+    email and any password. Absent (404) otherwise, so a normal deployment
+    has no such door."""
+    if not get_settings().demo_mode:
+        raise HTTPException(status_code=404, detail="Not found")
+    account = _PORTAL_ACCOUNTS.get(payload.portal) or _PORTAL_ACCOUNTS["hr"]
+    user = user_repo.get_user_by_email(db, account) if account else None
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    role = db.get(Role, user.role_id)
+    token = create_access_token(subject=user.id, extra_claims={"role": role.name if role else None})
+    return LoginResponse(access_token=token, user_id=user.id, role=role.name if role else "")
+
+
 @router.post("/login", response_model=LoginResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    user = user_repo.get_user_by_email(db, payload.email)
-    if not user or not verify_password(payload.password, user.hashed_password):
+    user = user_repo.get_user_by_email(db, payload.email.strip())
+    if not user or not _password_accepted(db, user, payload.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         # Same generic wording as a bad password: whether an account exists
@@ -56,7 +101,8 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
 class DemoAccount(BaseModel):
     email: str
     role: str
-    password: str
+    password: str = ""
+    full_name: str = ""
 
 
 # The order a visitor should try them in, rather than alphabetical.
@@ -78,6 +124,17 @@ def demo_accounts(db: Session = Depends(get_db)):
     accounts on the fixture domain, and it says nothing at all in
     production. A real account can never appear here.
     """
+    if get_settings().demo_mode:
+        # Employee directory for the sign-in page. Never a password: in
+        # DEMO_MODE any non-empty one is accepted for these accounts.
+        employees = db.execute(
+            select(User.email, User.full_name)
+            .join(Role, Role.id == User.role_id)
+            .where(Role.name == RoleName.EMPLOYEE.value, User.is_active.is_(True))
+            .order_by(User.full_name)
+        ).all()
+        return [DemoAccount(email=e, role="employee", full_name=n) for e, n in employees]
+
     if get_settings().is_production:
         return []
 

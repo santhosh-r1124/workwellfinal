@@ -14,6 +14,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  portalLogin: (email: string, password: string, portal: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -68,13 +69,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     reportTimezone();
   };
 
+  const portalLogin = async (email: string, password: string, portal: string) => {
+    disableDemo();
+    let res;
+    try {
+      res = await api.portalLogin(email, password, portal);
+    } catch (err) {
+      // Portal sign-in only exists in presentation deployments; everywhere
+      // else the portals use the account's own credentials.
+      if (!(err instanceof Error) || !err.message.startsWith("404")) throw err;
+      res = await api.login(email, password);
+    }
+    localStorage.setItem("workwell_token", res.access_token);
+    const me = await api.me();
+    setUser(me);
+  };
+
   const logout = () => {
     localStorage.removeItem("workwell_token");
     disableDemo();
     setUser(null);
   };
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login, portalLogin, logout }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {

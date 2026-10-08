@@ -82,3 +82,96 @@ def team_analytics(db: Session, org_id: str, team: str, as_of: date | None = Non
         "labels": METRIC_LABELS,
         **aggregate,
     }
+
+
+WELLBEING_METRICS = {
+    "stress": "Self-reported stress",
+    "energy": "Self-reported energy",
+    "recovery": "Self-reported recovery",
+}
+
+
+def wellness_overview(db: Session, org_id: str, as_of: date | None = None) -> dict:
+    """Organisation-wide wellbeing view for the wellness team.
+
+    Same rule as team analytics: only aggregates, and nothing at all unless
+    the cohort floor is met. Check-in scores are compared as a median of
+    per-person medians (current vs prior window); pattern states are
+    reported as counts, never as names.
+    """
+    from apps.backend.models import Role, SelfReport
+    from apps.backend.repositories import baseline_repo
+    from shared.enums.roles import RoleName
+
+    as_of = as_of or date.today()
+    current_start = as_of - timedelta(days=WINDOW_DAYS)
+    prior_start = as_of - timedelta(days=WINDOW_DAYS * 2)
+    min_cohort = get_min_cohort(db, org_id)
+
+    employee_ids = list(
+        db.scalars(
+            select(User.id)
+            .join(Role, Role.id == User.role_id)
+            .where(
+                User.org_id == org_id,
+                User.is_active.is_(True),
+                Role.name == RoleName.EMPLOYEE.value,
+            )
+        )
+    )
+
+    per_employee: dict[str, dict[str, dict[str, list[float]]]] = {}
+    weekly: dict[int, dict[str, dict[str, list[float]]]] = {}
+    if employee_ids:
+        reports = db.scalars(
+            select(SelfReport).where(
+                SelfReport.employee_id.in_(employee_ids),
+                SelfReport.date > prior_start,
+                SelfReport.date <= as_of,
+            )
+        )
+        for r in reports:
+            window = "current" if r.date > current_start else "prior"
+            week = (as_of - r.date).days // 7
+            for metric in WELLBEING_METRICS:
+                value = float(getattr(r, metric))
+                per_employee.setdefault(r.employee_id, {}).setdefault(
+                    metric, {"current": [], "prior": []}
+                )[window].append(value)
+                weekly.setdefault(week, {}).setdefault(r.employee_id, {}).setdefault(
+                    metric, []
+                ).append(value)
+
+    aggregate = aggregate_team_metrics(per_employee, list(WELLBEING_METRICS), min_cohort=min_cohort)
+    sufficient = aggregate["sufficient_cohort"]
+
+    import statistics
+
+    trend = []
+    if sufficient:
+        for week in sorted(weekly, reverse=True):
+            people = weekly[week]
+            if len(people) < min_cohort:
+                continue
+            point = {"week_ending": (as_of - timedelta(days=7 * week)).isoformat(), "contributors": len(people)}
+            for metric in WELLBEING_METRICS:
+                medians = [statistics.median(v[metric]) for v in people.values() if v.get(metric)]
+                point[metric] = round(float(statistics.median(medians)), 2) if medians else None
+            trend.append(point)
+
+    states: dict[str, int] = {}
+    for employee_id in employee_ids:
+        latest = baseline_repo.recent_pattern_states(db, employee_id, limit=1)
+        state = latest[-1].state if latest else "BASELINE_BUILDING"
+        states[state] = states.get(state, 0) + 1
+
+    return {
+        "as_of": as_of.isoformat(),
+        "window_days": WINDOW_DAYS,
+        "labels": WELLBEING_METRICS,
+        "scale_max": 5,
+        "employees": len(employee_ids),
+        "pattern_states": states if len(employee_ids) >= min_cohort else {},
+        "trend": trend,
+        **aggregate,
+    }

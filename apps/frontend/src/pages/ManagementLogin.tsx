@@ -2,142 +2,48 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Mark } from "../components/AppShell";
 import ThemeToggle from "../components/ThemeToggle";
+import { useAuth } from "../context/AuthContext";
 
 type Role = "hr" | "manager" | "consultant";
 
-// Registered user emails with their vitals
-const REGISTERED_USERS = [
-  {
-    email: "harish44443@gmail.com",
-    name: "Harish Kumar",
-    department: "Software Engineering",
-    stressLevel: 5,
-    energyLevel: 8,
-    sleepHours: 6.7,
-    moodScore: 8,
-  },
-  {
-    email: "karthikm6@gmail.com",
-    name: "Karthik M",
-    department: "Data Engineering",
-    stressLevel: 4,
-    energyLevel: 7,
-    sleepHours: 7.3,
-    moodScore: 8,
-  },
-  {
-    email: "sanika.g@gmail.com",
-    name: "Sanika G",
-    department: "AI/ML",
-    stressLevel: 3,
-    energyLevel: 9,
-    sleepHours: 8.0,
-    moodScore: 9,
-  },
-  {
-    email: "debothri.ghosh@gmail.com",
-    name: "Debothri Ghosh",
-    department: "Quality Engineering",
-    stressLevel: 5,
-    energyLevel: 5,
-    sleepHours: 6.1,
-    moodScore: 7,
-  },
-  {
-    email: "sksricharan2003@gmail.com",
-    name: "S K Sricharan",
-    department: "Cloud & DevOps",
-    stressLevel: 6,
-    energyLevel: 6,
-    sleepHours: 6.7,
-    moodScore: 6,
-  },
-  {
-    email: "Santhosh@gmail.com",
-    name: "Santhosh Rajinikanth",
-    department: "AI Engineering",
-    stressLevel: 4,
-    energyLevel: 8,
-    sleepHours: 7.1,
-    moodScore: 8,
-  },
-];
+const PORTAL: Record<Role, "hr" | "manager" | "wellness"> = {
+  hr: "hr",
+  manager: "manager",
+  consultant: "wellness",
+};
+
+const DESTINATION: Record<Role, string> = {
+  hr: "/teams",
+  manager: "/teams",
+  consultant: "/management/consultant",
+};
 
 export default function ManagementLogin() {
   const navigate = useNavigate();
+  const { portalLogin } = useAuth();
   const [role, setRole] = useState<Role>("hr");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-
-  // Filter suggestions based on input
-  const filteredEmails = email.trim()
-    ? REGISTERED_USERS.filter(user =>
-        user.email.toLowerCase().includes(email.toLowerCase()) ||
-        user.name.toLowerCase().includes(email.toLowerCase())
-      )
-    : REGISTERED_USERS;
-
-  const handleEmailSelect = (selectedEmail: string) => {
-    setEmail(selectedEmail);
-    setShowSuggestions(false);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setBusy(true);
 
     const trimmedEmail = email.trim();
-
     if (!trimmedEmail || !password) {
-      setError("Please enter email and password");
-      setBusy(false);
+      setError("Enter any email and any password.");
       return;
     }
 
-    // Check if registered user (any password accepted)
-    const registeredUser = REGISTERED_USERS.find(
-      user => user.email.toLowerCase() === trimmedEmail.toLowerCase()
-    );
-
-    // For registered emails: accept any password
-    if (registeredUser) {
-      try {
-        localStorage.setItem("mgmt_role", role);
-        localStorage.setItem("mgmt_email", trimmedEmail);
-        localStorage.setItem("mgmt_user_name", registeredUser.name);
-        localStorage.setItem("mgmt_user_data", JSON.stringify(registeredUser));
-        localStorage.setItem("mgmt_token", `mgmt_${role}_${Date.now()}`);
-        navigate(`/management/${role}`);
-      } catch (err) {
-        setError("Login failed. Please try again.");
-        setBusy(false);
-      }
-      return;
-    }
-
-    // Emergency access: accept any email + any password
+    setBusy(true);
     try {
-      localStorage.setItem("mgmt_role", role);
-      localStorage.setItem("mgmt_email", trimmedEmail);
-      localStorage.setItem("mgmt_user_name", trimmedEmail.split("@")[0]);
-      localStorage.setItem("mgmt_user_data", JSON.stringify({
-        email: trimmedEmail,
-        name: trimmedEmail.split("@")[0],
-        department: "Emergency Access",
-        stressLevel: 5,
-        energyLevel: 5,
-        sleepHours: 7,
-        moodScore: 5,
-      }));
-      localStorage.setItem("mgmt_token", `mgmt_${role}_${Date.now()}`);
-      navigate(`/management/${role}`);
-    } catch (err) {
-      setError("Login failed. Please try again.");
+      await portalLogin(trimmedEmail, password, PORTAL[role]);
+      navigate(DESTINATION[role]);
+    } catch {
+      setError("Can't reach the WorkWell server. Make sure the backend is running on port 8000.");
       setBusy(false);
     }
   };
@@ -232,32 +138,11 @@ export default function ManagementLogin() {
               id="email"
               type="text"
               value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setShowSuggestions(true);
-              }}
-              onFocus={() => setShowSuggestions(true)}
-              placeholder="Type name or email"
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@company.com"
               className="field w-full bg-slate-700 border-slate-600 text-white placeholder-slate-500"
-              autoComplete="off"
+              autoComplete="username"
             />
-
-            {/* Email Suggestions Dropdown */}
-            {showSuggestions && filteredEmails.length > 0 && (
-              <div className="absolute top-full left-0 right-0 bg-slate-700 border border-slate-600 rounded mt-1 z-10 max-h-64 overflow-y-auto shadow-lg">
-                {filteredEmails.map((user) => (
-                  <button
-                    key={user.email}
-                    type="button"
-                    onClick={() => handleEmailSelect(user.email)}
-                    className="w-full text-left px-3 py-2 hover:bg-slate-600 transition-colors border-b border-slate-600 last:border-b-0"
-                  >
-                    <div className="text-white font-medium text-sm">{user.email}</div>
-                    <div className="text-slate-400 text-xs">{user.name} • {user.department}</div>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           <label htmlFor="password" className="block text-[13px] text-slate-300 mb-2">

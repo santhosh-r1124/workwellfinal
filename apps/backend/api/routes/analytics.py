@@ -18,6 +18,20 @@ def list_teams(user: User = Depends(_manager_or_admin), db: Session = Depends(ge
     return {"teams": analytics_service.list_teams(db, user.org_id)}
 
 
+@router.get("/wellness-overview")
+def wellness_overview(user: User = Depends(_manager_or_admin), db: Session = Depends(get_db)):
+    result = analytics_service.wellness_overview(db, user.org_id)
+    audit_service.record(
+        db,
+        actor_id=user.id,
+        subject_user_id=None,
+        action="analytics.wellness_view",
+        resource="org:wellness",
+        meta={"cohort_size": result["cohort_size"], "sufficient": result["sufficient_cohort"]},
+    )
+    return result
+
+
 @router.get("/teams/{team}")
 def team_analytics(
     team: str, user: User = Depends(_manager_or_admin), db: Session = Depends(get_db)

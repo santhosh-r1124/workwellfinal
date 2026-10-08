@@ -1,4 +1,5 @@
 from integrations.base import WorkloadConnector
+from integrations.google_calendar import GoogleCalendarConnector
 from integrations.ics_calendar import IcsCalendarConnector
 from integrations.oauth_connectors import DECLARED, UnimplementedConnector
 
@@ -29,5 +30,6 @@ def available_connectors() -> list[dict]:
 
 
 register_connector(IcsCalendarConnector())
+register_connector(GoogleCalendarConnector())
 for metadata in DECLARED:
     register_connector(UnimplementedConnector(metadata))

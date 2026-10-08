@@ -38,6 +38,7 @@ services:
     environment:
       POSTGRES_HOST: postgres
       REDIS_URL: redis://redis:6379/0
+      DEMO_MODE: ${DEMO_MODE:-true}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -99,9 +100,9 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "${FRONTEND_PORT:-3300}:3300"
     depends_on:
       - backend
     volumes:

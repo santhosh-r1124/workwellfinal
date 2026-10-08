@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from apps.backend.models import User
@@ -9,7 +9,7 @@ def get_user(db: Session, user_id: str) -> User | None:
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
-    return db.scalar(select(User).where(User.email == email))
+    return db.scalar(select(User).where(func.lower(User.email) == email.strip().lower()))
 
 
 def list_users(db: Session, org_id: str | None = None) -> list[User]:

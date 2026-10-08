@@ -11,6 +11,7 @@ from apps.backend.api.routes import (
     chat,
     consent,
     employees,
+    google_oauth,
     health,
     me,
     metrics,
@@ -67,6 +68,10 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
+        # In DEMO_MODE the UI may be opened on any local port (3000, 3300,
+        # 5173...) or as 127.0.0.1; a CORS refusal there looks to the
+        # presenter like "invalid credentials" and empty dashboards.
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?" if settings.demo_mode else None,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -83,6 +88,7 @@ def create_app() -> FastAPI:
     app.include_router(chat.router)
     app.include_router(analytics.router)
     app.include_router(admin.router)
+    app.include_router(google_oauth.router)
 
     return app
 

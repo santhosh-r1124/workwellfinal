@@ -12,7 +12,10 @@ from apps.backend.core.redis_client import get_redis
 # ones worth brute-forcing.
 DEFAULT_LIMIT_PER_MINUTE = 120
 AUTH_LIMIT_PER_MINUTE = 10
-AUTH_PATHS = ("/auth/login",)
+# A presentation switches accounts every few seconds from one laptop; ten
+# sign-ins a minute would lock the presenter out mid-demo.
+DEMO_AUTH_LIMIT_PER_MINUTE = 120
+AUTH_PATHS = ("/auth/login", "/auth/portal-login")
 
 # Probes and the scrape target. A liveness probe that gets a 429 is read by
 # the orchestrator as a dead container, so rate limiting these would turn a
@@ -51,7 +54,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         identity = self._identity(request)
-        limit = AUTH_LIMIT_PER_MINUTE if request.url.path in AUTH_PATHS else DEFAULT_LIMIT_PER_MINUTE
+        auth_limit = DEMO_AUTH_LIMIT_PER_MINUTE if get_settings().demo_mode else AUTH_LIMIT_PER_MINUTE
+        limit = auth_limit if request.url.path in AUTH_PATHS else DEFAULT_LIMIT_PER_MINUTE
         window = int(time.time() // 60)
         key = f"ratelimit:{identity}:{request.url.path}:{window}"
 

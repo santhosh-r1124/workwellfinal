@@ -12,7 +12,11 @@ class GeminiProvider:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self._client = genai.Client(api_key=settings.gemini_api_key)
+        self._client = genai.Client(
+            api_key=settings.gemini_api_key,
+            # google-genai 0.4.0 takes this timeout in seconds (later releases use ms).
+            http_options={"timeout": settings.gemini_timeout_seconds},
+        )
         self._models = [settings.gemini_model] + [
             m.strip() for m in settings.gemini_fallback_models.split(",") if m.strip()
         ]
@@ -32,7 +36,15 @@ class GeminiProvider:
                 # A spent quota or an overloaded model moves on to the next
                 # one. A bad key or a malformed request fails the same way
                 # on all of them, so those are raised straight away.
-                if not any(m in str(exc) for m in ("429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE")):
+                # A model this key cannot use (404) or one that stalls past
+                # the request timeout also moves on.
+                if not any(
+                    m in f"{type(exc).__name__} {exc}"
+                    for m in (
+                        "429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE", "404", "NOT_FOUND",
+                        "Timeout", "timed out",
+                    )
+                ):
                     raise
                 last_error = exc
         raise last_error
